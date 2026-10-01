@@ -1,0 +1,39 @@
+<?xml version='1.0'?>
+<manifest android:installLocation="auto" package="com.topicdev.makimedia" xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:maxSdkVersion="32" android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <!-- %%INSERT_PERMISSIONS -->
+    <supports-screens android:anyDensity="true" android:largeScreens="true" android:normalScreens="true" android:smallScreens="true"/>
+    <!-- Both are declared not required so one APK still installs on phones.
+         Android assumes a touchscreen is required when nothing says
+         otherwise, which is what silently filters an app off every
+         television in the store. -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
+    <uses-feature android:name="android.software.leanback" android:required="false"/>
+    <!--%%INSERT_FEATURES-->
+    <application android:allowBackup="true" android:banner="@drawable/banner" android:hardwareAccelerated="true" android:icon="@mipmap/ic_launcher" android:label="Makimedia" android:name="org.qtproject.qt.android.bindings.QtApplication" android:requestLegacyExternalStorage="true" android:roundIcon="@mipmap/ic_launcher">
+        <activity android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|layoutDirection|locale|fontScale|keyboard|keyboardHidden|navigation|mcc|mnc|density" android:enableOnBackInvokedCallback="true" android:exported="true" android:label="Makimedia" android:launchMode="singleTop" android:name="com.topicdev.makimedia.MakimediaActivity" android:theme="@style/MyQtTheme" android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <!-- Both categories on one activity, so the same APK is
+                     launchable from a phone home screen and from the
+                     leanback launcher. A TV lists nothing that carries only
+                     LAUNCHER. -->
+                <category android:name="android.intent.category.LAUNCHER"/>
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
+            </intent-filter>
+            <meta-data android:name="android.app.lib_name" android:value="-- %%INSERT_APP_LIB_NAME%% --"/>
+            <meta-data android:name="android.app.arguments" android:value="-- %%INSERT_APP_ARGUMENTS%% --"/>
+            <!-- Qt keeps this up while it loads its libraries and until the
+                 first frame is drawn, rather than leaving a black window. -->
+            <meta-data android:name="android.app.splash_screen_drawable" android:resource="@drawable/splash"/>
+            <meta-data android:name="android.app.splash_screen_sticky" android:value="false"/>
+        </activity>
+        <provider android:authorities="${applicationId}.qtprovider" android:exported="false" android:grantUriPermissions="true" android:name="androidx.core.content.FileProvider">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/qtprovider_paths"/>
+        </provider>
+    </application>
+</manifest>

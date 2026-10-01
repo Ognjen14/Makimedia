@@ -1,0 +1,231 @@
+{
+  "version": 1,
+  "universes": [
+    {
+      "key": "mcu",
+      "name": "Marvel Cinematic Universe",
+      "description": "Superhero films sharing one timeline, released in phases since 2008.",
+      "poster": "/yFSIUVTCvgYrpalUktulvk3Gi5Y.jpg",
+      "backdrop": "/2UNUv4NJdC36E5myDHACBJ99EwL.jpg",
+      "collections": [86311, 131292, 131295, 131296, 284433, 422834, 529892, 531241, 618529, 623911],
+      "storyOrder": [
+        { "film": 1771, "title": "Captain America: The First Avenger", "released": "2011-07-22", "phase": "Phase One" },
+        { "film": 299537, "title": "Captain Marvel", "released": "2019-03-08", "phase": "Phase Three" },
+        { "film": 1726, "title": "Iron Man", "released": "2008-05-02", "phase": "Phase One" },
+        { "film": 10138, "title": "Iron Man 2", "released": "2010-05-07", "phase": "Phase One" },
+        { "film": 1724, "title": "The Incredible Hulk", "released": "2008-06-12", "phase": "Phase One" },
+        { "film": 10195, "title": "Thor", "released": "2011-05-06", "phase": "Phase One" },
+        { "film": 24428, "title": "The Avengers", "released": "2012-05-04", "phase": "Phase One" },
+        { "film": 76338, "title": "Thor: The Dark World", "released": "2013-11-08", "phase": "Phase Two" },
+        { "film": 68721, "title": "Iron Man 3", "released": "2013-05-03", "phase": "Phase Two" },
+        { "film": 100402, "title": "Captain America: The Winter Soldier", "released": "2014-04-04", "phase": "Phase Two" },
+        { "film": 118340, "title": "Guardians of the Galaxy", "released": "2014-08-01", "phase": "Phase Two" },
+        { "film": 283995, "title": "Guardians of the Galaxy Vol. 2", "released": "2017-05-05", "phase": "Phase Three" },
+        { "film": 99861, "title": "Avengers: Age of Ultron", "released": "2015-05-01", "phase": "Phase Two" },
+        { "film": 102899, "title": "Ant-Man", "released": "2015-07-17", "phase": "Phase Two" },
+        { "film": 271110, "title": "Captain America: Civil War", "released": "2016-05-06", "phase": "Phase Three" },
+        { "film": 497698, "title": "Black Widow", "released": "2021-07-09", "phase": "Phase Four" },
+        { "film": 284054, "title": "Black Panther", "released": "2018-02-16", "phase": "Phase Three" },
+        { "film": 315635, "title": "Spider-Man: Homecoming", "released": "2017-07-07", "phase": "Phase Three" },
+        { "film": 284052, "title": "Doctor Strange", "released": "2016-11-04", "phase": "Phase Three" },
+        { "film": 284053, "title": "Thor: Ragnarok", "released": "2017-11-03", "phase": "Phase Three" },
+        { "film": 363088, "title": "Ant-Man and the Wasp", "released": "2018-07-06", "phase": "Phase Three" },
+        { "film": 299536, "title": "Avengers: Infinity War", "released": "2018-04-27", "phase": "Phase Three" },
+        { "film": 299534, "title": "Avengers: Endgame", "released": "2019-04-26", "phase": "Phase Three" },
+        { "film": 566525, "title": "Shang-Chi and the Legend of the Ten Rings", "released": "2021-09-03", "phase": "Phase Four" },
+        { "film": 429617, "title": "Spider-Man: Far From Home", "released": "2019-07-02", "phase": "Phase Three" },
+        { "film": 524434, "title": "Eternals", "released": "2021-11-05", "phase": "Phase Four" },
+        { "film": 634649, "title": "Spider-Man: No Way Home", "released": "2021-12-17", "phase": "Phase Four" },
+        { "film": 453395, "title": "Doctor Strange in the Multiverse of Madness", "released": "2022-05-06", "phase": "Phase Four" },
+        { "film": 616037, "title": "Thor: Love and Thunder", "released": "2022-07-08", "phase": "Phase Four" },
+        { "film": 505642, "title": "Black Panther: Wakanda Forever", "released": "2022-11-11", "phase": "Phase Four" },
+        { "film": 447365, "title": "Guardians of the Galaxy Vol. 3", "released": "2023-05-05", "phase": "Phase Five" },
+        { "film": 640146, "title": "Ant-Man and the Wasp: Quantumania", "released": "2023-02-17", "phase": "Phase Five" },
+        { "film": 609681, "title": "The Marvels", "released": "2023-11-10", "phase": "Phase Five" },
+        { "film": 533535, "title": "Deadpool & Wolverine", "released": "2024-07-26", "phase": "Phase Five" },
+        { "film": 822119, "title": "Captain America: Brave New World", "released": "2025-02-14", "phase": "Phase Five" },
+        { "film": 986056, "title": "Thunderbolts*", "released": "2025-05-02", "phase": "Phase Five" },
+        { "film": 617126, "title": "The Fantastic 4: First Steps", "released": "2025-07-25", "phase": "Phase Six" },
+        { "film": 969681, "title": "Spider-Man: Brand New Day", "released": "2026-07-31", "phase": "Phase Six" },
+        { "film": 1003596, "title": "Avengers: Doomsday", "released": "2026-12-18", "phase": "Phase Six" },
+        { "film": 1003598, "title": "Avengers: Secret Wars", "released": "2027-12-17", "phase": "Phase Six" },
+        { "film": 1386618, "title": "Black Panther 3", "released": "2028-12-15", "phase": "" }
+      ]
+    },
+    {
+      "key": "wizarding-world",
+      "name": "Wizarding World",
+      "description": "The magical world of Harry Potter, from Newt Scamander's travels to Hogwarts.",
+      "poster": "/eVPs2Y0LyvTLZn6AP5Z6O2rtiGB.jpg",
+      "backdrop": "/4gV0rKUjB1nLUdZB4zIltLvNZZr.jpg",
+      "collections": [1241, 435259],
+      "storyOrder": [
+        { "film": 259316, "title": "Fantastic Beasts and Where to Find Them", "released": "2016-11-18", "phase": "Fantastic Beasts" },
+        { "film": 338952, "title": "Fantastic Beasts: The Crimes of Grindelwald", "released": "2018-11-16", "phase": "Fantastic Beasts" },
+        { "film": 338953, "title": "Fantastic Beasts: The Secrets of Dumbledore", "released": "2022-04-15", "phase": "Fantastic Beasts" },
+        { "film": 671, "title": "Harry Potter and the Philosopher's Stone", "released": "2001-11-16", "phase": "Harry Potter" },
+        { "film": 672, "title": "Harry Potter and the Chamber of Secrets", "released": "2002-11-15", "phase": "Harry Potter" },
+        { "film": 673, "title": "Harry Potter and the Prisoner of Azkaban", "released": "2004-05-31", "phase": "Harry Potter" },
+        { "film": 674, "title": "Harry Potter and the Goblet of Fire", "released": "2005-11-18", "phase": "Harry Potter" },
+        { "film": 675, "title": "Harry Potter and the Order of the Phoenix", "released": "2007-07-12", "phase": "Harry Potter" },
+        { "film": 767, "title": "Harry Potter and the Half-Blood Prince", "released": "2009-07-15", "phase": "Harry Potter" },
+        { "film": 12444, "title": "Harry Potter and the Deathly Hallows: Part 1", "released": "2010-11-19", "phase": "Harry Potter" },
+        { "film": 12445, "title": "Harry Potter and the Deathly Hallows: Part 2", "released": "2011-07-15", "phase": "Harry Potter" }
+      ]
+    },
+    {
+      "key": "middle-earth",
+      "name": "Middle-earth",
+      "description": "Tolkien's world on film, from the Rohirrim to the War of the Ring.",
+      "poster": "/oENY593nKRVL2PnxXsMtlh8izb4.jpg",
+      "backdrop": "/bccR2CGTWVVSZAG0yqmy3DIvhTX.jpg",
+      "collections": [119, 121938],
+      "storyOrder": [
+        { "film": 839033, "title": "The Lord of the Rings: The War of the Rohirrim", "released": "2024-12-13", "phase": "" },
+        { "film": 49051, "title": "The Hobbit: An Unexpected Journey", "released": "2012-12-14", "phase": "The Hobbit" },
+        { "film": 57158, "title": "The Hobbit: The Desolation of Smaug", "released": "2013-12-13", "phase": "The Hobbit" },
+        { "film": 122917, "title": "The Hobbit: The Battle of the Five Armies", "released": "2014-12-17", "phase": "The Hobbit" },
+        { "film": 120, "title": "The Lord of the Rings: The Fellowship of the Ring", "released": "2001-12-19", "phase": "The Lord of the Rings" },
+        { "film": 121, "title": "The Lord of the Rings: The Two Towers", "released": "2002-12-18", "phase": "The Lord of the Rings" },
+        { "film": 122, "title": "The Lord of the Rings: The Return of the King", "released": "2003-12-17", "phase": "The Lord of the Rings" }
+      ]
+    },
+    {
+      "key": "star-wars",
+      "name": "Star Wars",
+      "description": "The Skywalker saga and the stories told around it, a long time ago in a galaxy far, far away.",
+      "poster": "/pWVLFh4OuejTpUaDQbB1C4zoS2p.jpg",
+      "backdrop": "/iY2ujEY2m68OTTlPFTiHub9joHS.jpg",
+      "collections": [10],
+      "storyOrder": [
+        { "film": 1893, "title": "Star Wars: Episode I - The Phantom Menace", "released": "1999-05-19", "phase": "Prequel trilogy" },
+        { "film": 1894, "title": "Star Wars: Episode II - Attack of the Clones", "released": "2002-05-16", "phase": "Prequel trilogy" },
+        { "film": 1895, "title": "Star Wars: Episode III - Revenge of the Sith", "released": "2005-05-19", "phase": "Prequel trilogy" },
+        { "film": 348350, "title": "Solo: A Star Wars Story", "released": "2018-05-25", "phase": "Anthology" },
+        { "film": 330459, "title": "Rogue One: A Star Wars Story", "released": "2016-12-16", "phase": "Anthology" },
+        { "film": 11, "title": "Star Wars", "released": "1977-05-25", "phase": "Original trilogy" },
+        { "film": 1891, "title": "The Empire Strikes Back", "released": "1980-05-21", "phase": "Original trilogy" },
+        { "film": 1892, "title": "Return of the Jedi", "released": "1983-05-25", "phase": "Original trilogy" },
+        { "film": 140607, "title": "Star Wars: The Force Awakens", "released": "2015-12-18", "phase": "Sequel trilogy" },
+        { "film": 181808, "title": "Star Wars: The Last Jedi", "released": "2017-12-15", "phase": "Sequel trilogy" },
+        { "film": 181812, "title": "Star Wars: The Rise of Skywalker", "released": "2019-12-20", "phase": "Sequel trilogy" }
+      ]
+    },
+    {
+      "key": "monsterverse",
+      "name": "MonsterVerse",
+      "description": "Godzilla, Kong and the Titans, and the people who try to live alongside them.",
+      "poster": "/m4JJ0c2vFu5QDGaMNnhjOLFgkJh.jpg",
+      "backdrop": "/nB5NgrPi7h1EsFCHUvbzGBXqZ2Z.jpg",
+      "collections": [535313, 1539140],
+      "storyOrder": [
+        { "film": 293167, "title": "Kong: Skull Island", "released": "2017-03-10", "phase": "" },
+        { "film": 124905, "title": "Godzilla", "released": "2014-05-16", "phase": "" },
+        { "film": 373571, "title": "Godzilla: King of the Monsters", "released": "2019-05-31", "phase": "" },
+        { "film": 399566, "title": "Godzilla vs. Kong", "released": "2021-03-31", "phase": "" },
+        { "film": 823464, "title": "Godzilla x Kong: The New Empire", "released": "2024-03-29", "phase": "" },
+        { "film": 1288438, "title": "Godzilla x Kong: Supernova", "released": "2027-03-26", "phase": "" }
+      ]
+    },
+    {
+      "key": "spider-man",
+      "name": "Spider-Man",
+      "description": "Every live-action Spider-Man film: Sam Raimi's trilogy, the two Amazing films, and the Marvel Studios run.",
+      "titleKeywords": ["spiderman"],
+      "titleExcludes": ["spiderverse"],
+      "collections": [556, 125574, 531241],
+      "storyOrder": [
+        { "film": 557, "title": "Spider-Man", "released": "2002-05-03", "phase": "Sam Raimi" },
+        { "film": 558, "title": "Spider-Man 2", "released": "2004-06-30", "phase": "Sam Raimi" },
+        { "film": 559, "title": "Spider-Man 3", "released": "2007-05-04", "phase": "Sam Raimi" },
+        { "film": 1930, "title": "The Amazing Spider-Man", "released": "2012-07-03", "phase": "The Amazing Spider-Man" },
+        { "film": 102382, "title": "The Amazing Spider-Man 2", "released": "2014-05-02", "phase": "The Amazing Spider-Man" },
+        { "film": 315635, "title": "Spider-Man: Homecoming", "released": "2017-07-07", "phase": "Marvel Studios" },
+        { "film": 429617, "title": "Spider-Man: Far From Home", "released": "2019-07-02", "phase": "Marvel Studios" },
+        { "film": 634649, "title": "Spider-Man: No Way Home", "released": "2021-12-17", "phase": "Marvel Studios" },
+        { "film": 969681, "title": "Spider-Man: Brand New Day", "released": "2026-07-31", "phase": "Marvel Studios" }
+      ]
+    },
+    {
+      "key": "batman",
+      "name": "Batman",
+      "description": "Every live-action Batman film, from the 1966 serial spin-off to the Matt Reeves run.",
+      "titleKeywords": ["batman", "dark knight"],
+      "excludeGenres": ["animation"],
+      "collections": [120794, 263, 948485],
+      "storyOrder": [
+        { "film": 2661, "title": "Batman", "released": "1966-07-30", "phase": "Adam West" },
+        { "film": 268, "title": "Batman", "released": "1989-06-23", "phase": "Burton and Schumacher" },
+        { "film": 364, "title": "Batman Returns", "released": "1992-06-19", "phase": "Burton and Schumacher" },
+        { "film": 414, "title": "Batman Forever", "released": "1995-06-16", "phase": "Burton and Schumacher" },
+        { "film": 415, "title": "Batman & Robin", "released": "1997-06-20", "phase": "Burton and Schumacher" },
+        { "film": 272, "title": "Batman Begins", "released": "2005-06-15", "phase": "The Dark Knight" },
+        { "film": 155, "title": "The Dark Knight", "released": "2008-07-18", "phase": "The Dark Knight" },
+        { "film": 49026, "title": "The Dark Knight Rises", "released": "2012-07-20", "phase": "The Dark Knight" },
+        { "film": 209112, "title": "Batman v Superman: Dawn of Justice", "released": "2016-03-25", "phase": "DC Extended Universe" },
+        { "film": 414906, "title": "The Batman", "released": "2022-03-04", "phase": "Matt Reeves" },
+        { "film": 806704, "title": "The Batman: Part II", "released": "2028-10-01", "phase": "Matt Reeves" }
+      ]
+    },
+    {
+      "key": "superman",
+      "name": "Superman",
+      "description": "Every live-action Superman film, from Christopher Reeve to the DC Universe.",
+      "titleKeywords": ["superman", "man of steel", "man of tomorrow"],
+      "excludeGenres": ["animation"],
+      "collections": [8537, 209131, 1540907],
+      "storyOrder": [
+        { "film": 1924, "title": "Superman", "released": "1978-12-15", "phase": "Christopher Reeve" },
+        { "film": 8536, "title": "Superman II", "released": "1980-12-04", "phase": "Christopher Reeve" },
+        { "film": 9531, "title": "Superman III", "released": "1983-06-17", "phase": "Christopher Reeve" },
+        { "film": 11411, "title": "Superman IV: The Quest for Peace", "released": "1987-07-24", "phase": "Christopher Reeve" },
+        { "film": 1452, "title": "Superman Returns", "released": "2006-06-28", "phase": "Bryan Singer" },
+        { "film": 49521, "title": "Man of Steel", "released": "2013-06-14", "phase": "DC Extended Universe" },
+        { "film": 209112, "title": "Batman v Superman: Dawn of Justice", "released": "2016-03-25", "phase": "DC Extended Universe" },
+        { "film": 1061474, "title": "Superman", "released": "2025-07-11", "phase": "DC Universe" },
+        { "film": 1523140, "title": "Man of Tomorrow", "released": "2027-07-09", "phase": "DC Universe" }
+      ]
+    },
+    {
+      "key": "dc-comics",
+      "name": "DC Comics",
+      "description": "The live-action DC films in one place rather than scattered across a dozen small collections. Batman and Superman are in here too, and in their own.",
+      "titleKeywords": [
+        "batman", "dark knight", "superman", "man of steel", "man of tomorrow",
+        "wonder woman", "aquaman", "shazam", "suicide squad", "justice league",
+        "birds of prey", "black adam", "blue beetle", "the flash", "green lantern",
+        "supergirl", "catwoman", "jonah hex", "swamp thing", "constantine",
+        "watchmen", "v for vendetta", "joker", "the losers"
+      ],
+      "excludeGenres": ["animation"],
+      "collections": [120794, 263, 948485, 8537, 209131, 1540907, 573693, 468552,
+                      724848, 531242, 1025281, 987044]
+    },
+    {
+      "key": "john-wick",
+      "name": "John Wick",
+      "description": "The four films and Ballerina, which TMDB keeps outside the collection although it runs through the middle of Chapter 3.",
+      "titleKeywords": ["john wick"],
+      "collections": [404609],
+      "storyOrder": [
+        { "film": 245891, "title": "John Wick", "released": "2014-10-24", "phase": "" },
+        { "film": 324552, "title": "John Wick: Chapter 2", "released": "2017-02-10", "phase": "" },
+        { "film": 458156, "title": "John Wick: Chapter 3 - Parabellum", "released": "2019-05-17", "phase": "" },
+        { "film": 541671, "title": "Ballerina", "released": "2025-06-06", "phase": "" },
+        { "film": 603692, "title": "John Wick: Chapter 4", "released": "2023-03-24", "phase": "" }
+      ]
+    },
+    {
+      "key": "oceans",
+      "name": "Ocean's",
+      "description": "The Soderbergh trilogy and Ocean's Eight, which TMDB keeps outside the collection.",
+      "collections": [304],
+      "storyOrder": [
+        { "film": 161, "title": "Ocean's Eleven", "released": "2001-12-07", "phase": "" },
+        { "film": 163, "title": "Ocean's Twelve", "released": "2004-12-10", "phase": "" },
+        { "film": 298, "title": "Ocean's Thirteen", "released": "2007-06-08", "phase": "" },
+        { "film": 402900, "title": "Ocean's Eight", "released": "2018-06-08", "phase": "" }
+      ]
+    }
+  ]
+}

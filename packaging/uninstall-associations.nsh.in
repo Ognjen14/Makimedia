@@ -1,0 +1,14 @@
+; Generated from packaging/uninstall-associations.nsh.in - edit that, not this.
+;
+; Removes what install-associations.nsh registered.
+;
+; Note what is *not* removed: HKCU\Software\TopicDev\Makimedia, where the
+; settings live, nor the library database under AppData. Reinstalling and
+; finding the whole library gone is worse than leaving a few values behind.
+
+@MM_NSIS_DELETE_PROGIDS@
+
+DeleteRegKey HKCU "Software\Classes\Makimedia.Video"
+DeleteRegKey HKCU "Software\Classes\Applications\@MM_EXECUTABLE_NAME@"
+
+System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'

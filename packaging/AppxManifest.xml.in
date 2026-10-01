@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Generated from packaging/AppxManifest.xml.in - edit that, not this.
+
+  Identity is not ours to choose. Name, Publisher and PublisherDisplayName
+  are issued by Partner Center once the name is reserved, and a submission
+  whose manifest disagrees with the reservation is rejected. Set them with
+  -DMM_MSIX_IDENTITY_NAME=, -DMM_MSIX_PUBLISHER= and
+  -DMM_MSIX_PUBLISHER_DISPLAY_NAME=.
+
+  Version must have four parts and the last must be zero. The Store rejects
+  anything else, and it rejects a revision it has already seen, so the third
+  part is what moves between submissions of the same version.
+
+  The file types are the third copy of the list in install-associations.nsh
+  and associations.wxs, all three generated from MM_VIDEO_SUFFIXES.
+  tst_packagedformats holds them to MediaFormats::videoSuffixes().
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="@MM_MSIX_IDENTITY_NAME@"
+    Publisher="@MM_MSIX_PUBLISHER@"
+    Version="@MM_MSIX_VERSION@"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>Makimedia</DisplayName>
+    <PublisherDisplayName>@MM_MSIX_PUBLISHER_DISPLAY_NAME@</PublisherDisplayName>
+    <Description>Video player and library for films and television you already own.</Description>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop"
+                        MinVersion="10.0.17763.0"
+                        MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+
+  <Applications>
+    <Application Id="Makimedia"
+                 Executable="@MM_EXECUTABLE_NAME@"
+                 EntryPoint="Windows.FullTrustApplication">
+
+      <uap:VisualElements
+        DisplayName="Makimedia"
+        Description="Video player and library for films and television you already own."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Square310x310Logo="Assets\Square310x310Logo.png"
+                         Wide310x150Logo="Assets\Wide310x150Logo.png"
+                         Square71x71Logo="Assets\Square71x71Logo.png" />
+        <uap:SplashScreen Image="Assets\SplashScreen.png" BackgroundColor="#101014" />
+      </uap:VisualElements>
+
+      <Extensions>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="makimedia.video">
+            <uap:DisplayName>Video File</uap:DisplayName>
+            <uap:Logo>Assets\StoreLogo.png</uap:Logo>
+            <uap:SupportedFileTypes>
+@MM_MSIX_ASSOCIATIONS@
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+      </Extensions>
+
+    </Application>
+  </Applications>
+</Package>

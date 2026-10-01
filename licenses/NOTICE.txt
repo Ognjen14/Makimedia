@@ -1,0 +1,78 @@
+Makimedia - third-party notices
+===============================
+
+Makimedia itself is Copyright (C) 2026 TopicDev and is distributed under
+the GNU General Public License, version 2 or, at your option, any later
+version.  See GPL-2.0.txt.
+
+Both builds of mpv and FFmpeg that Makimedia includes contain components
+under the Apache License 2.0 (OpenSSL on Windows, mbedTLS on Android), which
+can only be combined with version 3 of the GNU General Public License.  The
+program as distributed for Windows and for Android is therefore covered by
+the GNU General Public License version 3.  See GPL-3.0.txt.
+
+The following components are included and are the property of their
+respective authors.
+
+
+mpv
+---
+GNU General Public License, version 2 or later.  See GPL-2.0.txt.
+Included unmodified.  https://mpv.io/
+
+  Windows   0.41.0-923-g7b8915bc1
+            https://github.com/shinchiro/mpv-winbuild-cmake/releases/tag/20260814
+  Android   0.40.0-292-g9f153e2a2
+            https://github.com/mpv-android/mpv-android/releases/tag/2025-08-25
+
+
+FFmpeg
+------
+GNU Lesser General Public License, version 2.1 or later, with parts under
+the GNU General Public License.  Both builds enable FFmpeg's GPL parts: the
+Windows build includes the x264 and x265 encoders and OpenSSL, and the
+Android build is configured with --enable-gpl and --enable-version3.  Both
+are therefore under the GNU General Public License version 3.  See
+LGPL-2.1.txt, GPL-2.0.txt and GPL-3.0.txt.
+Included unmodified.  https://ffmpeg.org/
+
+  Windows   commit 1d7b14f61
+  Android   n8.0 (libavcodec 62.11.100)
+
+
+Qt
+--
+GNU Lesser General Public License, version 3.  See LGPL-3.0.txt, which
+applies together with GPL-3.0.txt.  Dynamically linked, unmodified.
+https://www.qt.io/
+
+
+OpenSSL
+-------
+Apache License, Version 2.0.  See Apache-2.0.txt.  Included unmodified.
+  Windows   built into the libmpv build named above.  Qt itself uses
+            Windows' own Schannel.
+  Android   bundled for Qt, through https://github.com/KDAB/android_openssl
+
+
+Roboto
+------
+Apache License, Version 2.0.  See Apache-2.0.txt.
+https://fonts.google.com/specimen/Roboto
+
+
+SQLite
+------
+Public domain.  https://www.sqlite.org/copyright.html
+
+
+Offer of source code
+--------------------
+For three years from the release of this version we will give any third
+party the complete corresponding source code for the GPL and LGPL libraries
+above, on a medium customarily used for software interchange, for no more
+than our cost of performing the distribution.
+
+Requests to support@makimedia.org, see
+https://makimedia.org/legal.html#source-code
+Makimedia's own source is at https://github.com/Ognjen14/Makimedia

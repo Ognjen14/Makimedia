@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What Android shows from the moment the icon is tapped until Qt draws
+     its first frame. Without it the window is plain black for the seconds
+     the libraries take to load, which reads as an app that did not start. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@android:color/black"/>
+
+    <!-- The launcher artwork is a solid square with its background baked in,
+         which read as a block on the black. scripts/generate_android_splash.py
+         rounds its corners the way Android's own mask does. -->
+    <item android:gravity="center">
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/splash_logo"/>
+    </item>
+</layer-list>

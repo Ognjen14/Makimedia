@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Generated from packaging/associations.wxs.in - edit that, not this.
+
+  The WiX half of what install-associations.nsh does for NSIS, and for the
+  same reason written as plain registry values rather than the <ProgId> and
+  <Extension> elements WiX offers: those write the default handler for an
+  extension, and since Windows 10 the default is protected by a hash tied to
+  the user's own choice, so an installer that claims it is either ignored or
+  leaves the association reading "unknown". OpenWithProgids offers the entry
+  and lets the user pick, which is the only thing that actually works.
+
+  HKMU follows the install: per-machine when the MSI is, per-user when it is
+  not.
+-->
+<CPackWiXPatch>
+  <CPackWiXFragment Id="CM_CP_@MM_EXECUTABLE_NAME@">
+    <RegistryValue Root="HKMU" Key="Software\Classes\Makimedia.Video"
+                   Type="string" Value="Video File" KeyPath="no" />
+    <RegistryValue Root="HKMU" Key="Software\Classes\Makimedia.Video\DefaultIcon"
+                   Type="string" Value="[#CM_FP_@MM_EXECUTABLE_NAME@],0" KeyPath="no" />
+    <RegistryValue Root="HKMU" Key="Software\Classes\Makimedia.Video\shell\open\command"
+                   Type="string" Value="&quot;[#CM_FP_@MM_EXECUTABLE_NAME@]&quot; &quot;%1&quot;"
+                   KeyPath="no" />
+
+    <RegistryValue Root="HKMU"
+                   Key="Software\Classes\Applications\@MM_EXECUTABLE_NAME@"
+                   Name="FriendlyAppName" Type="string" Value="Makimedia" KeyPath="no" />
+    <RegistryValue Root="HKMU"
+                   Key="Software\Classes\Applications\@MM_EXECUTABLE_NAME@\shell\open\command"
+                   Type="string" Value="&quot;[#CM_FP_@MM_EXECUTABLE_NAME@]&quot; &quot;%1&quot;"
+                   KeyPath="no" />
+
+@MM_WIX_ASSOCIATIONS@
+  </CPackWiXFragment>
+</CPackWiXPatch>

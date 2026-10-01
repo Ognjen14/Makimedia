@@ -1,0 +1,26 @@
+; Generated from packaging/install-associations.nsh.in - edit that, not this.
+;
+; Registers Makimedia as a handler for video files, for the current user only.
+;
+; This adds Makimedia to the "Open with" list and gives it a document type; it
+; deliberately does not make itself the default handler. Since Windows 10 the
+; default for an extension is protected by a hash tied to the user's own choice,
+; and any installer that writes it directly is either ignored or resets the
+; association to "unknown". Offering the entry and letting the user pick is the
+; only approach that actually works.
+
+WriteRegStr HKCU "Software\Classes\Makimedia.Video" "" "Video File"
+WriteRegStr HKCU "Software\Classes\Makimedia.Video\DefaultIcon" "" "$INSTDIR\@MM_EXECUTABLE_NAME@,0"
+WriteRegStr HKCU "Software\Classes\Makimedia.Video\shell\open\command" "" '"$INSTDIR\@MM_EXECUTABLE_NAME@" "%1"'
+
+@MM_NSIS_OPEN_WITH_PROGIDS@
+
+; Also list the application itself, so it appears under "Open with" for any
+; video file, not only the extensions above.
+WriteRegStr HKCU "Software\Classes\Applications\@MM_EXECUTABLE_NAME@" "FriendlyAppName" "Makimedia"
+WriteRegStr HKCU "Software\Classes\Applications\@MM_EXECUTABLE_NAME@\shell\open\command" "" '"$INSTDIR\@MM_EXECUTABLE_NAME@" "%1"'
+@MM_NSIS_SUPPORTED_TYPES@
+
+; Tell the shell the association table changed, so icons refresh without a
+; sign-out.
+System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'

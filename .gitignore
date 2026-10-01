@@ -1,0 +1,59 @@
+# Build output
+/build/
+build-*/
+android-build*/
+
+# Qt Creator local state
+CMakeLists.txt.user*
+*.user
+*.autosave
+/.qtcreator/
+
+/third_party/*
+!/third_party/README.md
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+
+# Qt generated
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+*.moc
+.rcc/
+.qmlcache/
+
+# The TMDB key is a secret and never belongs in the repository.
+/tmdb_key.txt
+/opensubtitles_key.txt
+/include/Config/ApiKeys.h
+
+# Local logs and databases
+*.log
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Python bytecode from the scripts that build test libraries
+__pycache__/
+*.pyc
+
+# OS clutter
+Thumbs.db
+desktop.ini
+.DS_Store
+
+/scripts/*
+!/scripts/generate_api_key.py
+!/scripts/generate_msix_assets.py
+
+*.jks
+*.keystore
+*.pfx
+*.p12
+key.properties
+
+*.md
