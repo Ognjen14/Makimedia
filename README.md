@@ -50,12 +50,6 @@ Neither the key files nor the generated header are ever committed.
 
 **Logging.** The app writes a local log, `makimedia.log`, which never leaves the device. Development builds keep every line; build store releases with `-DMM_LOG_VERBOSE=OFF` to keep only info, warnings and errors.
 
-## Project documents
-
-- [`SPECS.md`](SPECS.md): the design, what the app is meant to be
-- [`TASKS.md`](TASKS.md): the working list of what is left and what was decided
-- [`TESTS.md`](TESTS.md): what is covered by tests and what is checked by hand
-
 ## Privacy
 
 Makimedia has no account, no analytics and no server of its own. Your library, progress and settings stay on your devices. The only network traffic is TMDB look-ups for posters and details, OpenSubtitles searches if you enable them, and streaming between your own devices. See the full privacy policy on the website.
