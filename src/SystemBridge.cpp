@@ -32,7 +32,7 @@
 
 namespace {
 #ifdef Q_OS_ANDROID
-constexpr const char *kActivityClass = "com/topicdev/makimedia/MakimediaActivity";
+constexpr const char *kActivityClass = "com/topicdev/makimedia/org/MakimediaActivity";
 SystemBridge *g_systemBridge = nullptr;
 #endif
 }

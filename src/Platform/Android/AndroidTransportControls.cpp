@@ -6,7 +6,7 @@
 
 namespace {
 
-constexpr const char *kSessionClass = "com/topicdev/makimedia/MakimediaMediaSession";
+constexpr const char *kSessionClass = "com/topicdev/makimedia/org/MakimediaMediaSession";
 
 constexpr int kCommandPlay = 1;
 constexpr int kCommandPause = 2;

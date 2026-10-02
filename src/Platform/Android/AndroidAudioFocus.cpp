@@ -6,7 +6,7 @@
 
 namespace {
 
-constexpr const char *kFocusClass = "com/topicdev/makimedia/MakimediaAudioFocus";
+constexpr const char *kFocusClass = "com/topicdev/makimedia/org/MakimediaAudioFocus";
 
 constexpr int kFocusGain = 1;
 constexpr int kFocusLoss = -1;

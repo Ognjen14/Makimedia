@@ -1,4 +1,4 @@
-package com.topicdev.makimedia;
+package com.topicdev.makimedia.org;
 
 import android.app.Activity;
 import android.graphics.Canvas;

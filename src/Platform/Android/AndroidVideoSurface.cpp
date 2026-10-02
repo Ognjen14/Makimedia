@@ -15,7 +15,7 @@
 
 namespace {
 
-const char *kSurfaceClass = "com/topicdev/makimedia/MakimediaVideoSurface";
+const char *kSurfaceClass = "com/topicdev/makimedia/org/MakimediaVideoSurface";
 constexpr int kSurfaceReleaseWaitMs = 500;
 
 }

@@ -13,7 +13,7 @@
 #include <unistd.h>
 
 namespace {
-constexpr const char *kActivityClass = "com/topicdev/makimedia/MakimediaActivity";
+constexpr const char *kActivityClass = "com/topicdev/makimedia/org/MakimediaActivity";
 constexpr const char *kMediaStoreScheme = "mediastore://";
 
 bool isSubtitleFolderName(const QString &name)

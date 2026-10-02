@@ -1,4 +1,4 @@
-package com.topicdev.makimedia;
+package com.topicdev.makimedia.org;
 
 import android.content.Context;
 import android.media.MediaMetadata;

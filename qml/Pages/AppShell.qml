@@ -1136,7 +1136,7 @@ Item {
             else if (outcome === 2)
                 _toast.show(qsTr("Log saved to the Download folder as makimedia.log"))
             else if (outcome === -3)
-                _toast.show(qsTr("The log is in Android/data/com.topicdev.makimedia/files/logs"))
+                _toast.show(qsTr("The log is in Android/data/com.topicdev.makimedia.org/files/logs"))
             else if (outcome < 0)
                 _toast.show(qsTr("The log could not be saved"))
         }
