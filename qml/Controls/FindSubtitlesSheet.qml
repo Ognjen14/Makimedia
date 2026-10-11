@@ -20,32 +20,58 @@ BottomSheet {
 
     signal landed(string path, string displayName)
 
+    readonly property bool onPc: Streaming.connected
+
     title: qsTr("Find subtitles")
 
     function start() {
         root.savedName = ""
         root.savedPath = ""
         root.problem = ""
-        SubtitleSearch.find(root.videoPath, root.tmdbId,
-                            root.season, root.episode)
         root.open()
+        if (root.onPc)
+            SubtitleSearch.findOnPc(Streaming.subtitleSearchUrl(root.handle),
+                                    root.tmdbId, root.season, root.episode)
+        else
+            SubtitleSearch.find(root.videoPath, root.tmdbId,
+                                root.season, root.episode)
+        if (S.AppTheme.remoteNavigation)
+            _claimFocus.restart()
+    }
+
+    Timer {
+        id: _claimFocus
+
+        interval: 250
+        onTriggered: {
+            if (root.opened && !root.focusContent())
+                root.forceActiveFocus(Qt.TabFocusReason)
+        }
     }
 
     Connections {
         target: SubtitleSearch
 
         function onSaved(path, displayName) {
+            if (!root.opened)
+                return
             root.problem = ""
             root.savedName = displayName
             root.savedPath = path
-            if (root.handle.length > 0)
+            if (!root.onPc && root.handle.length > 0)
                 Library.attachSubtitle(root.handle, "file:///" + path,
                                        "downloaded")
             root.landed(path, displayName)
         }
 
         function onFailed(reason) {
-            root.problem = reason
+            if (root.opened)
+                root.problem = reason
+        }
+
+        function onBusyChanged() {
+            if (!SubtitleSearch.busy && root.opened && S.AppTheme.remoteNavigation)
+                _claimFocus.restart()
         }
     }
 
@@ -108,7 +134,9 @@ BottomSheet {
 
                     Text {
                         width: parent.width
-                        text: qsTr("Beside the film and in its subtitle list. It loads the next time this plays.")
+                        text: root.onPc
+                              ? qsTr("Saved on the PC beside the film. It loads from there every time this plays.")
+                              : qsTr("Beside the film and in its subtitle list. It loads the next time this plays.")
                         color: S.AppTheme.textSecondary
                         font.pixelSize: S.AppTheme.fs12
                         wrapMode: Text.Wrap

@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
 
     app.setOrganizationName(QStringLiteral("TopicDev"));
     app.setApplicationName(QStringLiteral("Makimedia"));
-    app.setApplicationVersion(QStringLiteral("1.0.2"));
+    app.setApplicationVersion(QStringLiteral("1.0.4"));
 
 #ifdef Q_OS_WIN
     app.setQuitOnLastWindowClosed(false);
@@ -198,6 +198,7 @@ int main(int argc, char *argv[])
                                   metadataService, systemBridge, platformServices,
                                   librarySetup);
     streaming.setPlayer(&mpvController);
+    streaming.setSubtitleSearch(&subtitleSearch);
     qmlRegisterSingletonInstance("com.topicdev.makimedia", 1, 0, "Streaming", &streaming);
 
     QObject::connect(&streaming, &StreamingController::connectionChanged, &libraryController,

@@ -19,7 +19,7 @@ public:
 
     bool isReady() const;
 
-    void setVideoSize(const QSize &size);
+    void setVideoSize(const QSize &size, const QSize &pixels);
 
     void setAspect(double aspect, bool fill);
 

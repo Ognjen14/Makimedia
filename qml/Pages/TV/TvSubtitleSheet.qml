@@ -11,6 +11,8 @@ Ctrl.BottomSheet {
     property string handle
     property var attached: []
 
+    signal findOnlineRequested()
+
     title: qsTr("Subtitles")
 
     function reload() {
@@ -92,6 +94,20 @@ Ctrl.BottomSheet {
         }
 
         Ctrl.Divider { width: parent.width }
+
+        Ctrl.SheetRow {
+            width: parent.width
+            visible: SubtitleSearch.available
+            showRadio: false
+            iconSource: S.Icons.search
+            title: qsTr("Find subtitles online")
+            subtitle: qsTr("From opensubtitles.com, with the account from Settings")
+
+            onClicked: {
+                root.close()
+                root.findOnlineRequested()
+            }
+        }
 
         Ctrl.SheetRow {
             id: _addRow

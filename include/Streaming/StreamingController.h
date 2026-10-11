@@ -27,6 +27,7 @@ class LibrarySetup;
 class MetadataService;
 class MpvController;
 class PlatformServices;
+class SubtitleSearch;
 class SystemBridge;
 
 class StreamingController : public QObject
@@ -52,6 +53,7 @@ class StreamingController : public QObject
     Q_PROPERTY(QString connectingText READ connectingText NOTIFY connectionChanged FINAL)
     Q_PROPERTY(double connectProgress READ connectProgress NOTIFY connectProgressChanged FINAL)
     Q_PROPERTY(QString connectedServerName READ connectedServerName NOTIFY connectionChanged FINAL)
+    Q_PROPERTY(bool canFindSubtitles READ canFindSubtitles NOTIFY connectionChanged FINAL)
     Q_PROPERTY(bool offerVisible READ offerVisible NOTIFY offerChanged FINAL)
     Q_PROPERTY(QString offerServerName READ offerServerName NOTIFY offerChanged FINAL)
     Q_PROPERTY(StoredMirrorModel *storedLibraries READ storedLibraries CONSTANT FINAL)
@@ -91,6 +93,8 @@ public:
     QString connectingText() const;
     double connectProgress() const;
     QString connectedServerName() const;
+    bool canFindSubtitles() const;
+    Q_INVOKABLE QString subtitleSearchUrl(const QString &handle);
     bool offerVisible() const;
     QString offerServerName() const;
     StoredMirrorModel *storedLibraries() const;
@@ -115,6 +119,7 @@ public:
     Q_INVOKABLE QString remoteFileUrl(qint64 fileId);
 
     void setPlayer(MpvController *player);
+    void setSubtitleSearch(SubtitleSearch *search);
 
     ConnectedDeviceModel *devices() const;
     int watchingCount() const;
@@ -147,6 +152,7 @@ signals:
 
 private:
     void setLastError(const QString &error);
+    void answerSubtitleAsk(const SubtitleAsk &ask, const SubtitleDone &done);
     void onFound(const QString &serverId, const QString &name, const QString &host,
                  quint16 port);
     QList<StreamDevice> withArtwork(QList<StreamDevice> devices) const;
@@ -214,6 +220,9 @@ private:
     QPointer<QNetworkReply> m_eventsReply;
     QString m_lostName;
     MpvController *m_player = nullptr;
+    SubtitleSearch *m_subtitleSearch = nullptr;
+    bool m_subtitleAskRunning = false;
+    bool m_serverFindsSubtitles = false;
     QString m_playingTitle;
     QString m_playingHandle;
     qint64 m_playingFileId = -1;

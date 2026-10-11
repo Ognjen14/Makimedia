@@ -1018,10 +1018,15 @@ void MpvController::updateVideoResolution()
             ? QSize(int(m_displayWidth), int(m_displayHeight))
             : QSize(int(m_videoWidth), int(m_videoHeight));
 
-        if (shape.width() > 0 && shape.height() > 0 && shape != m_surfaceSize) {
+        const QSize pixels = QSize(int(m_videoWidth), int(m_videoHeight));
+
+        if (shape.width() > 0 && shape.height() > 0
+            && (shape != m_surfaceSize || pixels != m_surfacePixels)) {
             m_surfaceSize = shape;
-            MM_LOG_I() << "video surface shaped to" << shape;
-            AndroidVideoSurface::instance()->setVideoSize(shape);
+            m_surfacePixels = pixels;
+            MM_LOG_I() << "video surface shaped to" << shape << "holding" << pixels
+                       << "pixels";
+            AndroidVideoSurface::instance()->setVideoSize(shape, pixels);
         }
     }
 #endif

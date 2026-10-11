@@ -638,9 +638,14 @@ Item {
                              ? Ctrl.AppButton.Tonal
                              : Ctrl.AppButton.Outlined
                     iconSource: S.Icons.subtitles
-                    visible: !Streaming.connected
+                    visible: !Streaming.connected || Streaming.canFindSubtitles
                     enabled: root.present
-                    onClicked: _subtitleMenu.open()
+                    onClicked: {
+                        if (Streaming.connected)
+                            _findSubtitles.start()
+                        else
+                            _subtitleMenu.open()
+                    }
                 }
 
                 Ctrl.AppButton {
@@ -1167,7 +1172,7 @@ Item {
             Ctrl.SheetRow {
                 width: parent ? parent.width : 0
                 showRadio: false
-                visible: SubtitleSearch.available && !System.isTelevision
+                visible: SubtitleSearch.available
                 iconSource: S.Icons.search
                 title: qsTr("Find subtitles online")
                 subtitle: root.isEpisode

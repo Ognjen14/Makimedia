@@ -4,6 +4,7 @@
 #include "Config/ApiKeys.h"
 #include "Library/SubtitleNaming.h"
 #include "MmLog.h"
+#include "Streaming/StreamProtocol.h"
 
 #include <QCoreApplication>
 #include <QDataStream>
@@ -28,6 +29,7 @@ namespace {
 
 constexpr int kHashChunk = 64 * 1024;
 constexpr qint64 kMaxSubtitleBytes = 4 * 1024 * 1024;
+constexpr int kPcAnswerTimeoutMs = 60000;
 
 QByteArray apiKey()
 {
@@ -95,12 +97,13 @@ SubtitleSearch::SubtitleSearch(AppSettings &settings, QObject *parent)
     , m_settings(settings)
     , m_host(QStringLiteral("api.opensubtitles.com"))
 {
+    m_network = new QNetworkAccessManager(this);
+
     if (!available()) {
         MM_LOG_I() << "subtitle search is unavailable on this build";
         return;
     }
 
-    m_network = new QNetworkAccessManager(this);
     MM_LOG_I() << "subtitle search ready, key is" << apiKey().size()
                << "characters, identifying as" << userAgent();
 
@@ -147,6 +150,7 @@ QVariantList SubtitleSearch::results() const
         entry.insert(QStringLiteral("name"), candidate.name);
         entry.insert(QStringLiteral("hashMatched"), candidate.hashMatched);
         entry.insert(QStringLiteral("downloads"), candidate.downloads);
+        entry.insert(QStringLiteral("fileId"), candidate.fileId);
         list.append(entry);
     }
     return list;
@@ -195,6 +199,7 @@ void SubtitleSearch::find(const QString &videoPath, qint64 tmdbId,
     }
 
     m_videoPath = videoPath;
+    m_pcFileUrl.clear();
     m_tmdbId = tmdbId;
     m_season = season;
     m_episode = episode;
@@ -214,6 +219,139 @@ void SubtitleSearch::find(const QString &videoPath, qint64 tmdbId,
         m_searchWhenSignedIn = true;
         signIn();
     }
+}
+
+void SubtitleSearch::findOnPc(const QString &fileUrl, qint64 tmdbId,
+                              int season, int episode)
+{
+    if (m_busy) {
+        return;
+    }
+
+    forget();
+
+    if (fileUrl.isEmpty()) {
+        emit failed(tr("The PC does not know this video."));
+        return;
+    }
+
+    m_pcFileUrl = fileUrl;
+    m_videoPath.clear();
+    setBusy(true);
+
+    const QJsonObject body{
+        { QStringLiteral("tmdb"), double(tmdbId) },
+        { QStringLiteral("season"), season },
+        { QStringLiteral("episode"), episode }
+    };
+    MM_LOG_I() << "asking the PC to search subtitles for"
+               << StreamProtocol::withoutToken(fileUrl);
+    askPc(QStringLiteral("/subtitles/search"), body, [this](const QJsonObject &answer) {
+        takePcCandidates(answer);
+    });
+}
+
+void SubtitleSearch::askPc(const QString &what, const QJsonObject &body,
+                           std::function<void(const QJsonObject &answer)> then)
+{
+    QNetworkRequest request{ QUrl(m_pcFileUrl + what) };
+    request.setHeader(QNetworkRequest::ContentTypeHeader,
+                      QStringLiteral("application/json"));
+    request.setTransferTimeout(kPcAnswerTimeoutMs);
+
+    QNetworkReply *reply =
+        m_network->post(request, QJsonDocument(body).toJson(QJsonDocument::Compact));
+    connect(reply, &QNetworkReply::finished, this, [this, reply, then]() {
+        reply->deleteLater();
+        const int status =
+            reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (reply->error() != QNetworkReply::NoError || status != 200) {
+            MM_LOG_W() << "the PC did not answer the subtitle request - status" << status
+                       << StreamProtocol::withoutToken(reply->errorString());
+            stop(status == 404 || status == 405
+                     ? tr("The PC cannot search for subtitles. Update Makimedia on the PC.")
+                     : tr("The PC did not answer."));
+            return;
+        }
+
+        const QJsonObject answer = QJsonDocument::fromJson(reply->readAll()).object();
+        if (answer.contains(QStringLiteral("left"))) {
+            m_left = answer.value(QStringLiteral("left")).toInt();
+            emit quotaChanged();
+        }
+        const QString problem = answer.value(QStringLiteral("problem")).toString();
+        if (!problem.isEmpty()) {
+            stop(problem);
+            return;
+        }
+        then(answer);
+    });
+}
+
+void SubtitleSearch::takePcCandidates(const QJsonObject &answer)
+{
+    const QJsonArray offered = answer.value(QStringLiteral("results")).toArray();
+    for (const QJsonValue &value : offered) {
+        const QJsonObject entry = value.toObject();
+        Candidate candidate;
+        candidate.fileId = qint64(entry.value(QStringLiteral("fileId")).toDouble());
+        candidate.name = entry.value(QStringLiteral("name")).toString();
+        candidate.release = entry.value(QStringLiteral("release")).toString();
+        candidate.language = entry.value(QStringLiteral("language")).toString();
+        candidate.hashMatched = entry.value(QStringLiteral("hashMatched")).toBool();
+        candidate.downloads = entry.value(QStringLiteral("downloads")).toInt();
+        if (candidate.fileId > 0) {
+            m_candidates.append(candidate);
+        }
+    }
+
+    MM_LOG_I() << "the PC offered" << m_candidates.size() << "subtitles";
+
+    setBusy(false);
+    emit resultsChanged();
+    emit found();
+
+    if (m_candidates.isEmpty()) {
+        emit failed(tr("Nothing found for this one."));
+    }
+}
+
+void SubtitleSearch::fetchFromPc(const Candidate &candidate)
+{
+    const QJsonObject body{
+        { QStringLiteral("pick"), double(candidate.fileId) }
+    };
+    askPc(QStringLiteral("/subtitles/fetch"), body, [this](const QJsonObject &answer) {
+        const QString path = answer.value(QStringLiteral("url")).toString();
+        const qsizetype root = m_pcFileUrl.indexOf(QLatin1String("/v1/file/"));
+        if (!path.startsWith(QLatin1Char('/')) || root < 0) {
+            stop(tr("The PC did not say where the subtitle is."));
+            return;
+        }
+
+        const QString name = answer.value(QStringLiteral("name")).toString();
+        MM_LOG_I() << "the PC downloaded" << name << "-" << m_left << "downloads left today";
+        setBusy(false);
+        emit saved(m_pcFileUrl.left(root) + path, name);
+    });
+}
+
+void SubtitleSearch::fetchFile(const QString &videoPath, qint64 fileId)
+{
+    if (!available() || m_busy) {
+        return;
+    }
+
+    if (m_pcFileUrl.isEmpty() && videoPath == m_videoPath) {
+        for (const Candidate &candidate : std::as_const(m_candidates)) {
+            if (candidate.fileId == fileId) {
+                setBusy(true);
+                requestLink(candidate);
+                return;
+            }
+        }
+    }
+    emit failed(tr("That list is out of date. Search again."));
 }
 
 void SubtitleSearch::forget()
@@ -425,6 +563,7 @@ void SubtitleSearch::takeCandidates(const QByteArray &body)
 
     setBusy(false);
     emit resultsChanged();
+    emit found();
 
     if (m_candidates.isEmpty()) {
         emit failed(tr("Nothing found for this one."));
@@ -433,7 +572,15 @@ void SubtitleSearch::takeCandidates(const QByteArray &body)
 
 void SubtitleSearch::fetch(int index)
 {
-    if (!available() || m_busy || index < 0 || index >= m_candidates.size()) {
+    if (m_busy || index < 0 || index >= m_candidates.size()) {
+        return;
+    }
+    if (!m_pcFileUrl.isEmpty()) {
+        setBusy(true);
+        fetchFromPc(m_candidates.at(index));
+        return;
+    }
+    if (!available()) {
         return;
     }
     setBusy(true);

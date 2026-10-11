@@ -524,19 +524,45 @@ Item {
         return Number(text)
     }
 
-    function applyAspect(index) {
+    function aspectKeyOf(mode) {
+        if (mode.pan > 0)
+            return "fill"
+        return mode.aspect === "-1" ? "" : mode.aspect
+    }
+
+    function setAspectMode(index) {
         const count = aspectModes.length
         aspectIndex = ((index % count) + count) % count
         const mode = aspectModes[aspectIndex]
         MpvPlayer.aspectOverride = mode.aspect
         MpvPlayer.panscan = mode.pan
         MpvPlayer.setSurfaceAspect(root.aspectRatioOf(mode.aspect), mode.pan > 0)
+        return mode
+    }
+
+    function applyAspect(index) {
+        const mode = root.setAspectMode(index)
+        AppSettings.setAspectFor(root.fileHandle, root.aspectKeyOf(mode))
         zoomFactor = 1
         panX = 0
         panY = 0
         MpvPlayer.resetVideoZoom()
         _centreOsd.flash(mode.label, qsTr("Aspect"))
         revealControls()
+    }
+
+    function restoreAspect() {
+        const kept = AppSettings.aspectFor(root.fileHandle)
+        let index = 0
+        if (kept.length > 0) {
+            for (let i = 0; i < aspectModes.length; ++i) {
+                if (root.aspectKeyOf(aspectModes[i]) === kept) {
+                    index = i
+                    break
+                }
+            }
+        }
+        root.setAspectMode(index)
     }
 
     function cycleAspect() {
@@ -1607,17 +1633,22 @@ Item {
 
             Ctrl.Divider {
                 width: parent.width
-                visible: !System.isTelevision && !Streaming.connected
+                visible: _findOnline.visible
+                         || (!System.isTelevision && !Streaming.connected)
             }
 
             Ctrl.SheetRow {
+                id: _findOnline
+
                 width: parent.width
-                visible: SubtitleSearch.available && !Streaming.connected
-                         && !System.isTelevision
+                visible: Streaming.connected ? Streaming.canFindSubtitles
+                                             : SubtitleSearch.available
                 showRadio: false
                 iconSource: S.Icons.search
                 title: qsTr("Find subtitles online")
-                subtitle: qsTr("From opensubtitles.com, and loaded straight away")
+                subtitle: Streaming.connected
+                          ? qsTr("The PC gets it from opensubtitles.com, and it loads straight away")
+                          : qsTr("From opensubtitles.com, and loaded straight away")
                 onClicked: {
                     _subtitleSheet.close()
                     root.findSubtitlesOnline()
@@ -1957,7 +1988,7 @@ Item {
         function onFileLoadedChanged() {
             if (MpvPlayer.fileLoaded) {
                 root.failure = ""
-                root.aspectIndex = 0
+                root.restoreAspect()
                 root.syncSpeedIndex()
             }
         }

@@ -137,6 +137,8 @@ public:
     void setTreatAsTelevision(bool value);
 
     QStringList recentSearches() const;
+    Q_INVOKABLE QString aspectFor(const QString &fileHandle) const;
+    Q_INVOKABLE void setAspectFor(const QString &fileHandle, const QString &aspect);
     Q_INVOKABLE void noteSearch(const QString &query);
     Q_INVOKABLE void forgetSearches();
     static bool treatAsTelevisionAtLaunch();

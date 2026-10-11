@@ -2,6 +2,7 @@
 
 #include "MmLog.h"
 
+#include <QCryptographicHash>
 #include <QUuid>
 
 AppSettings::AppSettings(QObject *parent)
@@ -331,6 +332,37 @@ void AppSettings::setSubtitlesOnByDefault(bool value)
     }
     m_settings.setValue(QStringLiteral("subtitlesOnByDefault"), value);
     emit subtitlesOnByDefaultChanged();
+}
+
+namespace {
+
+QString aspectKey(const QString &fileHandle)
+{
+    return QStringLiteral("aspectByFile/")
+           + QString::fromLatin1(QCryptographicHash::hash(fileHandle.toUtf8(),
+                                                          QCryptographicHash::Md5).toHex());
+}
+
+}
+
+QString AppSettings::aspectFor(const QString &fileHandle) const
+{
+    if (fileHandle.isEmpty()) {
+        return QString();
+    }
+    return m_settings.value(aspectKey(fileHandle)).toString();
+}
+
+void AppSettings::setAspectFor(const QString &fileHandle, const QString &aspect)
+{
+    if (fileHandle.isEmpty()) {
+        return;
+    }
+    if (aspect.isEmpty()) {
+        m_settings.remove(aspectKey(fileHandle));
+    } else {
+        m_settings.setValue(aspectKey(fileHandle), aspect);
+    }
 }
 
 QString AppSettings::playerControlScheme() const

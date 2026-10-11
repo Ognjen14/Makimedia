@@ -32,6 +32,18 @@ public class MakimediaVideoSurface implements SurfaceHolder.Callback {
     private static int s_videoWidth;
     private static int s_videoHeight;
 
+    // The picture's own resolution. Some decoders do not stretch what they
+    // decode to the surface, so the surface is made exactly this many pixels
+    // and the system does the scaling to the view.
+    private static int s_pixelWidth;
+    private static int s_pixelHeight;
+
+    private static final int MAX_PIXEL_WIDTH = 4096;
+    private static final int MAX_PIXEL_HEIGHT = 2304;
+
+    private int m_fixedWidth;
+    private int m_fixedHeight;
+
     // A forced display aspect, or zero for the picture's own. mpv never sees
     // the frames, so an aspect setting has nowhere else to take effect.
     private static double s_aspect;
@@ -113,9 +125,12 @@ public class MakimediaVideoSurface implements SurfaceHolder.Callback {
 
     // The decoder fills whatever surface it is handed and cannot letterbox,
     // so the black bars have to be the shape of the surface itself.
-    public static void setVideoSize(final int width, final int height) {
+    public static void setVideoSize(final int width, final int height,
+                                    final int pixelWidth, final int pixelHeight) {
         s_videoWidth = width;
         s_videoHeight = height;
+        s_pixelWidth = pixelWidth;
+        s_pixelHeight = pixelHeight;
 
         final Activity activity = MakimediaActivity.instance();
         if (activity == null) {
@@ -275,10 +290,22 @@ public class MakimediaVideoSurface implements SurfaceHolder.Callback {
         params.topMargin = (availableHeight - height) / 2;
         m_view.setLayoutParams(params);
 
+        final boolean lockable = s_pixelWidth > 0 && s_pixelHeight > 0
+                                 && s_pixelWidth <= MAX_PIXEL_WIDTH
+                                 && s_pixelHeight <= MAX_PIXEL_HEIGHT;
+        if (lockable && (s_pixelWidth != m_fixedWidth || s_pixelHeight != m_fixedHeight)) {
+            m_fixedWidth = s_pixelWidth;
+            m_fixedHeight = s_pixelHeight;
+            m_view.getHolder().setFixedSize(m_fixedWidth, m_fixedHeight);
+        }
+
         Log.i(TAG, "video surface " + width + "x" + height + " in "
                    + availableWidth + "x" + availableHeight
                    + (s_fill ? " filling" : " fitted")
-                   + " at aspect " + String.format("%.3f", aspect));
+                   + " at aspect " + String.format("%.3f", aspect)
+                   + (m_fixedWidth > 0
+                          ? ", holding " + m_fixedWidth + "x" + m_fixedHeight + " pixels"
+                          : ", pixels as the view"));
     }
 
     // Only before the first video. Locking the canvas takes the buffer queue

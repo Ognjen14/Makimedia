@@ -18,11 +18,13 @@
 #include "Streaming/Mirror.h"
 #include "Streaming/RemoteMediaSource.h"
 #include "Streaming/StreamProtocol.h"
+#include "Subtitles/SubtitleSearch.h"
 #include "SystemBridge.h"
 
 #include <QDir>
 #include <QGuiApplication>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QScreen>
@@ -31,6 +33,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QSysInfo>
+#include <QTimer>
 #include <QUrl>
 
 #ifdef Q_OS_ANDROID
@@ -49,6 +52,7 @@ constexpr int kQuietWaitStepMs = 100;
 constexpr int kQuietWaitSteps = 100;
 constexpr int kTabletSmallestSide = 600;
 constexpr int kDeveloperSilenceMs = 60000;
+constexpr int kSubtitleAskTimeoutMs = 45000;
 constexpr qint64 kDeveloperSlowBytesPerSecond = 256 * 1024;
 
 }
@@ -241,6 +245,13 @@ void StreamingController::startServing()
             return MediaFormats::isVideoFile(name);
         });
     });
+    if (m_subtitleSearch && m_subtitleSearch->available()) {
+        m_server.setSubtitleHelper([this](const SubtitleAsk &ask, const SubtitleDone &done) {
+            answerSubtitleAsk(ask, done);
+        });
+    } else {
+        m_server.setSubtitleHelper(nullptr);
+    }
     if (!m_server.start(StreamProtocol::HttpPort)) {
         m_servedFileCount = 0;
         setLastError(tr("Streaming could not start: %1").arg(m_server.errorString()));
@@ -268,6 +279,73 @@ void StreamingController::startServing()
     MM_LOG_I() << "streaming: on as" << info.name << "at" << m_addresses
                << "port" << m_server.port() << "with" << m_servedFileCount << "files";
     emit servingChanged();
+}
+
+void StreamingController::setSubtitleSearch(SubtitleSearch *search)
+{
+    m_subtitleSearch = search;
+}
+
+void StreamingController::answerSubtitleAsk(const SubtitleAsk &ask, const SubtitleDone &done)
+{
+    const auto refuse = [&done](const QString &problem) {
+        done({ QJsonObject{ { QStringLiteral("problem"), problem } }, QString() });
+    };
+
+    SubtitleSearch *search = m_subtitleSearch;
+    if (!search || !search->available()) {
+        refuse(tr("This PC cannot search for subtitles."));
+        return;
+    }
+    if (m_settings.subtitleAccount().isEmpty() || m_settings.subtitlePassword().isEmpty()) {
+        refuse(tr("Add your opensubtitles account in Settings on the PC first."));
+        return;
+    }
+    if (m_subtitleAskRunning || search->busy()) {
+        refuse(tr("The PC is busy with another subtitle search. Try again in a moment."));
+        return;
+    }
+
+    m_subtitleAskRunning = true;
+    QObject *watch = new QObject(this);
+    const auto finish = [this, watch, search, done](QJsonObject body, const QString &saved) {
+        if (watch->property("done").toBool()) {
+            return;
+        }
+        watch->setProperty("done", true);
+        watch->deleteLater();
+        m_subtitleAskRunning = false;
+        if (search->downloadsLeft() >= 0) {
+            body.insert(QStringLiteral("left"), search->downloadsLeft());
+        }
+        done({ body, saved });
+    };
+
+    connect(search, &SubtitleSearch::failed, watch, [finish](const QString &reason) {
+        finish(QJsonObject{ { QStringLiteral("problem"), reason } }, QString());
+    });
+    QTimer::singleShot(kSubtitleAskTimeoutMs, watch, [finish]() {
+        finish(QJsonObject{ { QStringLiteral("problem"),
+                              tr("opensubtitles is not answering.") } }, QString());
+    });
+
+    if (ask.fetch) {
+        MM_LOG_I() << "streaming: a device asks for subtitle" << ask.pick << "of file"
+                   << ask.fileId;
+        connect(search, &SubtitleSearch::saved, watch,
+                [finish](const QString &path, const QString &) {
+            finish(QJsonObject(), path);
+        });
+        search->fetchFile(ask.videoPath, ask.pick);
+    } else {
+        MM_LOG_I() << "streaming: a device searches subtitles for file" << ask.fileId;
+        connect(search, &SubtitleSearch::found, watch, [finish, search]() {
+            finish(QJsonObject{ { QStringLiteral("results"),
+                                  QJsonArray::fromVariantList(search->results()) } },
+                   QString());
+        });
+        search->find(ask.videoPath, ask.tmdbId, ask.season, ask.episode);
+    }
 }
 
 void StreamingController::stopServing()
@@ -583,7 +661,10 @@ void StreamingController::openSession()
         }
 
         m_token = token;
-        MM_LOG_I() << "streaming: session with" << m_targetName << "opened";
+        m_serverFindsSubtitles = answer.value(QStringLiteral("subtitleSearch")).toBool();
+        MM_LOG_I() << "streaming: session with" << m_targetName << "opened,"
+                   << (m_serverFindsSubtitles ? "it searches subtitles for us"
+                                              : "it does not search subtitles");
         startStaying();
         m_sync.start(sessionBase(), m_targetId, m_targetName);
     });
@@ -1074,6 +1155,19 @@ void StreamingController::selectServer(const QString &serverId)
     m_servers->setSelected(serverId);
     MM_LOG_I() << "streaming: the PC to play from is" << server->name << "at" << server->host;
     emit selectedServerChanged();
+}
+
+bool StreamingController::canFindSubtitles() const
+{
+    return m_connected && m_serverFindsSubtitles;
+}
+
+QString StreamingController::subtitleSearchUrl(const QString &handle)
+{
+    if (!canFindSubtitles() || !m_remoteSource) {
+        return QString();
+    }
+    return m_remoteSource->mpvUrl(handle);
 }
 
 QString StreamingController::remoteFileUrl(qint64 fileId)

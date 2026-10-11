@@ -52,10 +52,11 @@ bool AndroidVideoSurface::isReady() const
     return m_ready;
 }
 
-void AndroidVideoSurface::setVideoSize(const QSize &size)
+void AndroidVideoSurface::setVideoSize(const QSize &size, const QSize &pixels)
 {
-    QJniObject::callStaticMethod<void>(kSurfaceClass, "setVideoSize", "(II)V",
-                                       jint(size.width()), jint(size.height()));
+    QJniObject::callStaticMethod<void>(kSurfaceClass, "setVideoSize", "(IIII)V",
+                                       jint(size.width()), jint(size.height()),
+                                       jint(pixels.width()), jint(pixels.height()));
 }
 
 void AndroidVideoSurface::setAspect(double aspect, bool fill)

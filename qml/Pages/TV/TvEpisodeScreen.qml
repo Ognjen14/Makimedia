@@ -319,11 +319,16 @@ Item {
                         height: root.actionHeight
                         text: qsTr("Subtitles")
                         variant: Ctrl.AppButton.Outlined
-                        visible: !Streaming.connected
+                        visible: !Streaming.connected || Streaming.canFindSubtitles
 
                         KeyNavigation.left: _watched
                         KeyNavigation.right: _allEpisodes
-                        onClicked: _subtitleSheet.open()
+                        onClicked: {
+                            if (Streaming.connected)
+                                _findSubtitles.start()
+                            else
+                                _subtitleSheet.open()
+                        }
                     }
 
                     Ctrl.AppButton {
@@ -461,6 +466,21 @@ Item {
         z: 50
         handle: root.handle
 
+        onClosed: _subtitles.forceActiveFocus(Qt.TabFocusReason)
+        onFindOnlineRequested: _findSubtitles.start()
+    }
+
+    Ctrl.FindSubtitlesSheet {
+        id: _findSubtitles
+
+        z: 50
+        handle: root.handle
+        videoPath: root.info.path || ""
+        tmdbId: root.metadata.tmdbId || 0
+        season: root.metadata.season || 0
+        episode: root.metadata.episode || 0
+
+        onLanded: (path, displayName) => root.refreshAttachedSubtitle()
         onClosed: _subtitles.forceActiveFocus(Qt.TabFocusReason)
     }
 

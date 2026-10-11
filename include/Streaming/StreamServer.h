@@ -4,6 +4,7 @@
 #include "Streaming/SessionTable.h"
 
 #include <QHash>
+#include <QJsonObject>
 #include <QList>
 #include <QObject>
 #include <QString>
@@ -15,6 +16,26 @@ class QThread;
 class StreamServerWorker;
 
 using SubtitleLister = std::function<QStringList(const QString &videoPath)>;
+
+struct SubtitleAsk
+{
+    bool fetch = false;
+    qint64 fileId = 0;
+    QString videoPath;
+    qint64 tmdbId = 0;
+    int season = 0;
+    int episode = 0;
+    qint64 pick = 0;
+};
+
+struct SubtitleAnswer
+{
+    QJsonObject body;
+    QString savedPath;
+};
+
+using SubtitleDone = std::function<void(const SubtitleAnswer &answer)>;
+using SubtitleHelper = std::function<void(const SubtitleAsk &ask, const SubtitleDone &done)>;
 
 struct StreamServerInfo
 {
@@ -38,6 +59,7 @@ public:
     void setFiles(const QHash<qint64, QString> &paths);
     void setAttachedSubtitles(const QHash<qint64, QList<AttachedSubtitle>> &attached);
     void setSubtitleLister(SubtitleLister lister);
+    void setSubtitleHelper(SubtitleHelper helper);
     void setArtworkDirectory(const QString &directory);
 
     bool start(quint16 port);
@@ -65,6 +87,7 @@ private:
     QHash<qint64, QString> m_files;
     QHash<qint64, QList<AttachedSubtitle>> m_attached;
     SubtitleLister m_lister;
+    SubtitleHelper m_subtitleHelper;
     QString m_artworkDirectory;
     QThread *m_thread = nullptr;
     StreamServerWorker *m_worker = nullptr;

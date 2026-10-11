@@ -284,6 +284,7 @@ private:
     qint64 m_displayHeight = 0;
 
     QSize m_surfaceSize;
+    QSize m_surfacePixels;
     QString m_videoPrimaries;
     QString m_videoGamma;
     bool m_hdr = false;

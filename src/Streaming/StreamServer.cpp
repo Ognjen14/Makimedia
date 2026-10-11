@@ -18,6 +18,7 @@
 #include <QUrl>
 #include <QUrlQuery>
 #include <QMetaObject>
+#include <QPointer>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QThread>
@@ -67,6 +68,8 @@ struct ListedSubtitle
     bool attached = false;
 };
 
+class StreamConnection;
+
 using DevicesSink = std::function<void(const QList<StreamDevice> &devices)>;
 using MissSink = std::function<void(const QString &key)>;
 
@@ -75,12 +78,14 @@ class StreamServerWorker : public QObject
 public:
     StreamServerWorker(const StreamServerInfo &info, const QHash<qint64, QString> &files,
                        const QHash<qint64, QList<AttachedSubtitle>> &attached,
-                       const SubtitleLister &lister, const QString &artworkDirectory,
+                       const SubtitleLister &lister, SubtitleHelper helper,
+                       const QString &artworkDirectory,
                        DevicesSink sink, MissSink misses)
         : m_info(info)
         , m_files(files)
         , m_attached(attached)
         , m_lister(lister)
+        , m_helper(std::move(helper))
         , m_artworkDirectory(artworkDirectory)
         , m_sink(std::move(sink))
         , m_misses(std::move(misses))
@@ -104,6 +109,11 @@ public:
     QString pathFor(qint64 id) const { return m_files.value(id); }
     QList<ListedSubtitle> subtitlesFor(qint64 id) const;
 
+    bool findsSubtitles() const { return bool(m_helper); }
+    void askSubtitles(StreamConnection *connection, const SubtitleAsk &ask);
+    void finishSubtitles(int ticket, const SubtitleAnswer &answer);
+    void noteDownloaded(qint64 id, const QString &path) { m_downloaded[id].append(path); }
+
     QString openSession(const QString &deviceId, const QString &name, const QString &form,
                         const QString &peer);
     bool authorize(const QString &token);
@@ -125,6 +135,10 @@ private:
     QHash<qint64, QString> m_files;
     QHash<qint64, QList<AttachedSubtitle>> m_attached;
     SubtitleLister m_lister;
+    SubtitleHelper m_helper;
+    QHash<qint64, QStringList> m_downloaded;
+    QHash<int, QPointer<QObject>> m_asking;
+    int m_ticket = 0;
     QString m_artworkDirectory;
     DevicesSink m_sink;
     MissSink m_misses;
@@ -248,6 +262,15 @@ QList<ListedSubtitle> StreamServerWorker::subtitlesFor(qint64 id) const
                         subtitle.displayName, true });
     }
 
+    const QStringList downloaded = m_downloaded.value(id);
+    for (const QString &path : downloaded) {
+        if (!QFile::exists(path) || seen.contains(keyOf(path))) {
+            continue;
+        }
+        seen.insert(keyOf(path));
+        listed.append({ path, QFileInfo(path).fileName(), QString(), false });
+    }
+
     if (m_lister) {
         const QStringList found = m_lister(video);
         for (const QString &path : found) {
@@ -304,6 +327,42 @@ public:
 
     bool watching() const { return m_watching; }
 
+    void answerSubtitles(const SubtitleAnswer &answer)
+    {
+        if (!m_asking) {
+            return;
+        }
+        m_asking = false;
+
+        QJsonObject body = answer.body;
+        if (!answer.savedPath.isEmpty()) {
+            m_owner->noteDownloaded(m_askedId, answer.savedPath);
+            const QFileInfo saved(answer.savedPath);
+            const QList<ListedSubtitle> listed = m_owner->subtitlesFor(m_askedId);
+            QString url;
+            for (int n = 0; n < listed.size(); ++n) {
+                if (QFileInfo(listed.at(n).path) == saved) {
+                    url = QStringLiteral("/v1/file/%1/sub/%2/").arg(m_askedId).arg(n)
+                          + QString::fromLatin1(QUrl::toPercentEncoding(listed.at(n).name));
+                    body.insert(QStringLiteral("name"), listed.at(n).name);
+                    break;
+                }
+            }
+            if (url.isEmpty()) {
+                MM_LOG_W() << "stream: a downloaded subtitle is not on the list of file"
+                           << m_askedId << "-" << answer.savedPath;
+                body.insert(QStringLiteral("problem"),
+                            QStringLiteral("The PC saved the subtitle but cannot send it."));
+            } else {
+                body.insert(QStringLiteral("url"), url);
+            }
+        }
+
+        MM_LOG_I() << "stream: subtitle request for file" << m_askedId << "answered to" << m_peer
+                   << (body.contains(QStringLiteral("problem")) ? "with a problem" : "");
+        respond(200, QJsonDocument(body).toJson(QJsonDocument::Compact), "application/json");
+    }
+
     void sayGoodbye()
     {
         m_socket->write(HttpMessage::head(503, {
@@ -319,7 +378,7 @@ public:
     }
 
 private:
-    bool sending() const { return m_file.isOpen() || m_watching; }
+    bool sending() const { return m_file.isOpen() || m_watching || m_asking; }
 
     void onReadyRead()
     {
@@ -398,7 +457,8 @@ private:
                 asking.value(QStringLiteral("form")).toString().left(20), m_peer);
             const QJsonObject answer{
                 { QStringLiteral("token"), sessionToken },
-                { QStringLiteral("v"), StreamProtocol::Version }
+                { QStringLiteral("v"), StreamProtocol::Version },
+                { QStringLiteral("subtitleSearch"), m_owner->findsSubtitles() }
             };
             respond(200, QJsonDocument(answer).toJson(QJsonDocument::Compact),
                     "application/json");
@@ -436,6 +496,20 @@ private:
             MM_LOG_D() << "stream:" << m_peer << "listens for the PC stopping";
             m_watching = true;
             return;
+        }
+
+        const QString filePrefix = QStringLiteral("/v1/file/");
+        if (isPost && request.path.startsWith(filePrefix)) {
+            const QStringList segments = request.path.mid(filePrefix.size())
+                                             .split(QLatin1Char('/'));
+            const bool search = segments.size() == 3
+                                && segments.at(2) == QLatin1String("search");
+            const bool fetch = segments.size() == 3
+                               && segments.at(2) == QLatin1String("fetch");
+            if (segments.value(1) == QLatin1String("subtitles") && (search || fetch)) {
+                askSubtitles(segments.at(0), fetch, request.body);
+                return;
+            }
         }
 
         if (isPost || isDelete) {
@@ -485,7 +559,6 @@ private:
             return;
         }
 
-        const QString filePrefix = QStringLiteral("/v1/file/");
         if (request.path.startsWith(filePrefix) && (isGet || isHead)) {
             const QStringList segments = request.path.mid(filePrefix.size())
                                              .split(QLatin1Char('/'));
@@ -513,6 +586,33 @@ private:
 
         MM_LOG_D() << "stream: nothing at" << request.path << "for" << m_peer;
         respond(404, QByteArray(), "text/plain");
+    }
+
+    void askSubtitles(const QString &idText, bool fetch, const QByteArray &body)
+    {
+        bool ok = false;
+        const qint64 id = idText.toLongLong(&ok);
+        const QString path = ok ? m_owner->pathFor(id) : QString();
+        if (path.isEmpty() || !m_owner->findsSubtitles()) {
+            respond(404, QByteArray(), "text/plain");
+            return;
+        }
+
+        const QJsonObject asked = QJsonDocument::fromJson(body).object();
+        SubtitleAsk ask;
+        ask.fetch = fetch;
+        ask.fileId = id;
+        ask.videoPath = path;
+        ask.tmdbId = qint64(asked.value(QStringLiteral("tmdb")).toDouble());
+        ask.season = asked.value(QStringLiteral("season")).toInt();
+        ask.episode = asked.value(QStringLiteral("episode")).toInt();
+        ask.pick = qint64(asked.value(QStringLiteral("pick")).toDouble());
+
+        MM_LOG_I() << "stream:" << m_peer << (fetch ? "wants a subtitle downloaded for file"
+                                                    : "searches subtitles for file") << id;
+        m_askedId = id;
+        m_asking = true;
+        m_owner->askSubtitles(this, ask);
     }
 
     void listSubtitles(const QString &idText, bool headOnly)
@@ -780,8 +880,37 @@ private:
     qint64 m_budgetAtMs = 0;
     bool m_keepAlive = true;
     bool m_watching = false;
+    bool m_asking = false;
+    qint64 m_askedId = 0;
     bool m_pumpScheduled = false;
 };
+
+void StreamServerWorker::askSubtitles(StreamConnection *connection, const SubtitleAsk &ask)
+{
+    const int ticket = ++m_ticket;
+    m_asking.insert(ticket, connection);
+
+    QPointer<StreamServerWorker> self(this);
+    m_helper(ask, [self, ticket](const SubtitleAnswer &answer) {
+        StreamServerWorker *worker = self.data();
+        if (!worker) {
+            return;
+        }
+        QMetaObject::invokeMethod(worker, [worker, ticket, answer]() {
+            worker->finishSubtitles(ticket, answer);
+        }, Qt::QueuedConnection);
+    });
+}
+
+void StreamServerWorker::finishSubtitles(int ticket, const SubtitleAnswer &answer)
+{
+    QObject *connection = m_asking.take(ticket).data();
+    if (!connection) {
+        MM_LOG_D() << "stream: the device that asked for subtitles has gone";
+        return;
+    }
+    static_cast<StreamConnection *>(connection)->answerSubtitles(answer);
+}
 
 quint16 StreamServerWorker::listen(quint16 port, QString *error)
 {
@@ -875,6 +1004,11 @@ void StreamServer::setSubtitleLister(SubtitleLister lister)
     m_lister = std::move(lister);
 }
 
+void StreamServer::setSubtitleHelper(SubtitleHelper helper)
+{
+    m_subtitleHelper = std::move(helper);
+}
+
 void StreamServer::setArtworkDirectory(const QString &directory)
 {
     m_artworkDirectory = directory;
@@ -904,9 +1038,21 @@ bool StreamServer::start(quint16 port)
         }, Qt::QueuedConnection);
     };
 
+    SubtitleHelper helper;
+    if (m_subtitleHelper) {
+        helper = [this, generation](const SubtitleAsk &ask, const SubtitleDone &done) {
+            QMetaObject::invokeMethod(this, [this, generation, ask, done]() {
+                if (generation == m_generation && m_thread && m_subtitleHelper) {
+                    m_subtitleHelper(ask, done);
+                }
+            }, Qt::QueuedConnection);
+        };
+    }
+
     m_thread = new QThread();
     m_thread->setObjectName(QStringLiteral("StreamServer"));
     m_worker = new StreamServerWorker(m_info, m_files, m_attached, m_lister,
+                                      std::move(helper),
                                       m_artworkDirectory, std::move(sink),
                                       std::move(misses));
     m_worker->moveToThread(m_thread);

@@ -6,7 +6,10 @@
 #include <QStringList>
 #include <QVariantList>
 
+#include <functional>
+
 class AppSettings;
+class QJsonObject;
 class QNetworkAccessManager;
 class QNetworkReply;
 
@@ -35,13 +38,17 @@ public:
     Q_INVOKABLE void signIn();
     Q_INVOKABLE void find(const QString &videoPath, qint64 tmdbId,
                           int season, int episode);
+    Q_INVOKABLE void findOnPc(const QString &fileUrl, qint64 tmdbId,
+                              int season, int episode);
     Q_INVOKABLE void fetch(int index);
+    void fetchFile(const QString &videoPath, qint64 fileId);
     Q_INVOKABLE void forget();
 
 signals:
     void signedInChanged();
     void busyChanged();
     void resultsChanged();
+    void found();
     void quotaChanged();
     void failed(const QString &reason);
     void saved(const QString &path, const QString &displayName);
@@ -63,6 +70,10 @@ private:
     void requestLink(const Candidate &candidate);
     void collect(const QString &url, const Candidate &candidate);
     void store(const QByteArray &bytes, const Candidate &candidate);
+    void askPc(const QString &what, const QJsonObject &body,
+               std::function<void(const QJsonObject &answer)> then);
+    void takePcCandidates(const QJsonObject &answer);
+    void fetchFromPc(const Candidate &candidate);
     void stop(const QString &reason);
     void setBusy(bool busy);
     QNetworkReply *post(const QString &path, const QByteArray &body);
@@ -77,6 +88,7 @@ private:
     bool m_busy = false;
 
     QString m_videoPath;
+    QString m_pcFileUrl;
     qint64 m_tmdbId = 0;
     int m_season = 0;
     int m_episode = 0;

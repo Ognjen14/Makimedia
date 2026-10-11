@@ -108,6 +108,10 @@ Item {
         return true
     }
 
+    function focusContent() {
+        return root.focusFirstRow(_content)
+    }
+
     function focusGrid() {
         const items = root.focusableRows(_content, [])
         const rows = []
