@@ -96,7 +96,7 @@ void AndroidTransportControls::onTransportCommand(int command, qint64 argument)
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_topicdev_makimedia_MakimediaMediaSession_nativeTransportCommand(JNIEnv *, jclass,
+Java_com_topicdev_makimedia_org_MakimediaMediaSession_nativeTransportCommand(JNIEnv *, jclass,
                                                                         jint command,
                                                                         jlong argument)
 {

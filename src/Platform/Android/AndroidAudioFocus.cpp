@@ -84,7 +84,7 @@ void AndroidAudioFocus::onBecomingNoisy()
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_topicdev_makimedia_MakimediaAudioFocus_nativeFocusChanged(JNIEnv *, jclass, jint change)
+Java_com_topicdev_makimedia_org_MakimediaAudioFocus_nativeFocusChanged(JNIEnv *, jclass, jint change)
 {
     if (g_audioFocus) {
         g_audioFocus->onFocusChanged(static_cast<int>(change));
@@ -92,7 +92,7 @@ Java_com_topicdev_makimedia_MakimediaAudioFocus_nativeFocusChanged(JNIEnv *, jcl
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_topicdev_makimedia_MakimediaAudioFocus_nativeBecomingNoisy(JNIEnv *, jclass)
+Java_com_topicdev_makimedia_org_MakimediaAudioFocus_nativeBecomingNoisy(JNIEnv *, jclass)
 {
     if (g_audioFocus) {
         g_audioFocus->onBecomingNoisy();

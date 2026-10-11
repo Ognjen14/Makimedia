@@ -166,7 +166,7 @@ void AndroidVideoSurface::finishReleaseWhenLetGo()
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_topicdev_makimedia_MakimediaVideoSurface_nativeVideoSurfaceReady(JNIEnv *,
+Java_com_topicdev_makimedia_org_MakimediaVideoSurface_nativeVideoSurfaceReady(JNIEnv *,
                                                                          jclass)
 {
     QMetaObject::invokeMethod(AndroidVideoSurface::instance(),
@@ -174,7 +174,7 @@ Java_com_topicdev_makimedia_MakimediaVideoSurface_nativeVideoSurfaceReady(JNIEnv
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_topicdev_makimedia_MakimediaVideoSurface_nativeVideoSurfaceLost(JNIEnv *,
+Java_com_topicdev_makimedia_org_MakimediaVideoSurface_nativeVideoSurfaceLost(JNIEnv *,
                                                                         jclass)
 {
     AndroidVideoSurface *surface = AndroidVideoSurface::instance();

@@ -854,7 +854,7 @@ void SystemBridge::onKeyboardHeight(int pixels)
 
 #ifdef Q_OS_ANDROID
 extern "C" JNIEXPORT void JNICALL
-Java_com_topicdev_makimedia_MakimediaActivity_nativeOnBack(JNIEnv *, jclass)
+Java_com_topicdev_makimedia_org_MakimediaActivity_nativeOnBack(JNIEnv *, jclass)
 {
     if (g_systemBridge) {
         QMetaObject::invokeMethod(g_systemBridge, "onBackInternal", Qt::QueuedConnection);
@@ -862,7 +862,7 @@ Java_com_topicdev_makimedia_MakimediaActivity_nativeOnBack(JNIEnv *, jclass)
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_topicdev_makimedia_MakimediaActivity_nativeKeyboardHeight(JNIEnv *, jclass,
+Java_com_topicdev_makimedia_org_MakimediaActivity_nativeKeyboardHeight(JNIEnv *, jclass,
                                                                   jint pixels)
 {
     if (g_systemBridge) {
@@ -873,7 +873,7 @@ Java_com_topicdev_makimedia_MakimediaActivity_nativeKeyboardHeight(JNIEnv *, jcl
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_topicdev_makimedia_MakimediaActivity_nativeVideoPermissionResult(JNIEnv *, jclass,
+Java_com_topicdev_makimedia_org_MakimediaActivity_nativeVideoPermissionResult(JNIEnv *, jclass,
                                                                          jboolean granted)
 {
     if (g_systemBridge) {
@@ -884,7 +884,7 @@ Java_com_topicdev_makimedia_MakimediaActivity_nativeVideoPermissionResult(JNIEnv
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_topicdev_makimedia_MakimediaActivity_nativeSubtitlePicked(JNIEnv *env, jclass,
+Java_com_topicdev_makimedia_org_MakimediaActivity_nativeSubtitlePicked(JNIEnv *env, jclass,
                                                                   jstring uri)
 {
     if (!g_systemBridge) {
@@ -906,7 +906,7 @@ Java_com_topicdev_makimedia_MakimediaActivity_nativeSubtitlePicked(JNIEnv *env, 
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_topicdev_makimedia_MakimediaActivity_nativeSubtitleFolderResult(JNIEnv *, jclass,
+Java_com_topicdev_makimedia_org_MakimediaActivity_nativeSubtitleFolderResult(JNIEnv *, jclass,
                                                                         jboolean granted)
 {
     if (g_systemBridge) {
@@ -917,7 +917,7 @@ Java_com_topicdev_makimedia_MakimediaActivity_nativeSubtitleFolderResult(JNIEnv 
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_topicdev_makimedia_MakimediaActivity_nativeLogSaved(JNIEnv *, jclass, jint outcome)
+Java_com_topicdev_makimedia_org_MakimediaActivity_nativeLogSaved(JNIEnv *, jclass, jint outcome)
 {
     if (g_systemBridge) {
         QMetaObject::invokeMethod(g_systemBridge, "onLogSaved",
@@ -927,7 +927,7 @@ Java_com_topicdev_makimedia_MakimediaActivity_nativeLogSaved(JNIEnv *, jclass, j
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_topicdev_makimedia_MakimediaActivity_nativeStorageIndexChanged(JNIEnv *env, jclass,
+Java_com_topicdev_makimedia_org_MakimediaActivity_nativeStorageIndexChanged(JNIEnv *env, jclass,
                                                                        jstring volumeName)
 {
     if (!g_systemBridge) {
@@ -949,7 +949,7 @@ Java_com_topicdev_makimedia_MakimediaActivity_nativeStorageIndexChanged(JNIEnv *
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_topicdev_makimedia_MakimediaActivity_nativeStorageReading(JNIEnv *env, jclass,
+Java_com_topicdev_makimedia_org_MakimediaActivity_nativeStorageReading(JNIEnv *env, jclass,
                                                                   jstring volumeName,
                                                                   jboolean reading)
 {
@@ -973,7 +973,7 @@ Java_com_topicdev_makimedia_MakimediaActivity_nativeStorageReading(JNIEnv *env, 
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_topicdev_makimedia_MakimediaActivity_nativeTextEntered(JNIEnv *env, jclass,
+Java_com_topicdev_makimedia_org_MakimediaActivity_nativeTextEntered(JNIEnv *env, jclass,
                                                                jstring text,
                                                                jboolean accepted)
 {

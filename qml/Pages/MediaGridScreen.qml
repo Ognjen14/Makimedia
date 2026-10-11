@@ -87,6 +87,8 @@ Item {
     readonly property real tileWidth:
         (gridWidth - S.AppTheme.scrollBarWidth
          - (columnCount - 1) * S.AppTheme.spacing10) / columnCount
+    readonly property int focusHeadroom:
+        Math.max(S.AppTheme.focusHeadroom, S.AppTheme.focusHeadroomFor(tileWidth))
 
     Column {
         id: _toolbar
@@ -271,7 +273,7 @@ Item {
         cellWidth: root.tileWidth + S.AppTheme.spacing10
         cellHeight: root.tileWidth * S.AppTheme.posterAspectRatio
                     + S.AppTheme.spacing8 + 34 + S.AppTheme.spacing12
-                    + S.AppTheme.focusHeadroom
+                    + root.focusHeadroom
         model: root.model
         boundsBehavior: Flickable.StopAtBounds
         cacheBuffer: cellHeight
@@ -333,6 +335,7 @@ Item {
             Ctrl.MediaTile {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: root.tileWidth
+                focusHeadroom: root.focusHeadroom
                 shape: Ctrl.MediaTile.Poster
                 highlighted: _cell.GridView.isCurrentItem && _grid.activeFocus
                 artSource: {

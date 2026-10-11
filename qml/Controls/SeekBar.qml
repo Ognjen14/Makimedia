@@ -14,10 +14,67 @@ Item {
     property real trackHeight: AppTheme.seekBarHeight
     property real handleSize: AppTheme.seekBarHandleSize
 
-    readonly property bool seeking: _area.pressed
+    readonly property bool seeking: _area.pressed || keyScrubbing
     readonly property real displayPosition: seeking ? _scrubPosition : position
 
     property real _scrubPosition: 0
+
+    property real keyStep: 10
+    property bool keyScrubbing: false
+    property int _keyRepeats: 0
+
+    function nudge(seconds) {
+        if (duration <= 0)
+            return
+        if (!keyScrubbing) {
+            _scrubPosition = position
+            keyScrubbing = true
+        }
+        _scrubPosition = Math.max(0, Math.min(duration, _scrubPosition + seconds))
+        root.scrubbing(_scrubPosition)
+        _keyCommit.restart()
+    }
+
+    function commitKeyScrub() {
+        if (!keyScrubbing)
+            return
+        _keyCommit.stop()
+        keyScrubbing = false
+        root.seekRequested(_scrubPosition)
+    }
+
+    Timer {
+        id: _keyCommit
+
+        interval: 700
+        onTriggered: root.commitKeyScrub()
+    }
+
+    onActiveFocusChanged: {
+        if (!activeFocus)
+            root.commitKeyScrub()
+    }
+
+    Keys.onPressed: (event) => {
+        switch (event.key) {
+        case Qt.Key_Left:
+        case Qt.Key_Right: {
+            root._keyRepeats = event.isAutoRepeat ? root._keyRepeats + 1 : 0
+            const step = root.keyStep * Math.min(8, 1 + Math.floor(root._keyRepeats / 5))
+            root.nudge(event.key === Qt.Key_Left ? -step : step)
+            event.accepted = true
+            break
+        }
+        case Qt.Key_Select:
+        case Qt.Key_Return:
+        case Qt.Key_Enter:
+            if (root.keyScrubbing) {
+                root.commitKeyScrub()
+                event.accepted = true
+            }
+            break
+        }
+    }
 
     signal seekRequested(real seconds)
     signal scrubbing(real seconds)
@@ -69,7 +126,10 @@ Item {
         radius: AppTheme.radiusPill
         color: root.fillColor
         visible: root.enabled
-        scale: _area.pressed ? 1.25 : (_area.containsMouse ? 1.1 : 1.0)
+        border.width: root.activeFocus ? AppTheme.focusThickness : 0
+        border.color: AppTheme.focus
+        scale: root.activeFocus ? 1.5
+                                : (_area.pressed ? 1.25 : (_area.containsMouse ? 1.1 : 1.0))
 
         Behavior on scale {
             NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
@@ -80,12 +140,14 @@ Item {
         id: _preview
 
         readonly property real seconds:
-            _area.pressed ? root._scrubPosition : root.secondsAt(_area.mouseX)
+            (_area.pressed || root.keyScrubbing) ? root._scrubPosition
+                                                 : root.secondsAt(_area.mouseX)
 
         readonly property bool showFrame:
             root.previewEnabled && root.previewSource.toString().length > 0
 
-        visible: root.enabled && (_area.containsMouse || _area.pressed)
+        visible: root.enabled
+                 && (_area.containsMouse || _area.pressed || root.keyScrubbing)
         anchors.bottom: parent.top
         anchors.bottomMargin: AppTheme.spacing4
         x: Math.max(0, Math.min(root.width - width,
@@ -157,6 +219,8 @@ Item {
         cursorShape: root.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
 
         onPressed: (mouse) => {
+            _keyCommit.stop()
+            root.keyScrubbing = false
             root._scrubPosition = root.secondsAt(mouse.x)
             root.scrubbing(root._scrubPosition)
         }

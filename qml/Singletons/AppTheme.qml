@@ -290,10 +290,13 @@ QtObject {
 
     readonly property real focusScale: System.isTelevision ? 1.07 : 1.0
 
-    readonly property int focusHeadroom:
-        focusScale > 1.0
-        ? Math.ceil(posterTileWidth * posterAspectRatio * (focusScale - 1.0)) + 2
-        : 0
+    readonly property int focusHeadroom: focusHeadroomFor(posterTileWidth)
+
+    function focusHeadroomFor(tileWidth) {
+        return focusScale > 1.0
+               ? Math.ceil(tileWidth * posterAspectRatio * (focusScale - 1.0)) + 2
+               : 0
+    }
 
 
     readonly property int spacing2:  2

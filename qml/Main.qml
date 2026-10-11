@@ -232,12 +232,21 @@ ApplicationWindow {
     }
 
     property double _lastBackMs: 0
+    property double _exitArmedMs: 0
 
     function _handleBack() {
-        const now = Date.now()
-        if (now - _lastBackMs < 250)
+        if (Date.now() - _lastBackMs < 250)
             return true
-        _lastBackMs = now
+        _lastBackMs = Date.now()
+
+        _routeBack()
+
+        _lastBackMs = Date.now()
+        return true
+    }
+
+    function _routeBack() {
+        const now = Date.now()
 
         if (_setupWindow.shown) {
             if (Setup.finished)
@@ -268,6 +277,14 @@ ApplicationWindow {
             closePlayer()
             return true
         }
+
+        if (System.isTelevision && now - _exitArmedMs > 3000) {
+            _exitArmedMs = now
+            _exitHint.show(qsTr("Press back again to exit"))
+            return true
+        }
+        _exitArmedMs = 0
+        _exitHint.hide()
         System.minimizeApp()
         return true
     }
@@ -469,6 +486,17 @@ ApplicationWindow {
         anchors.fill: parent
         z: 100
         shown: Setup.shown && _stack.depth <= 1
+    }
+
+    C.Snackbar {
+        id: _exitHint
+
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: S.AppTheme.spacing24
+        width: Math.min(parent.width - 2 * S.AppTheme.spacing16, 320)
+        z: 90
+        dismissAfterMs: 3000
     }
 
     C.AppDialog {

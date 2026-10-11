@@ -37,6 +37,7 @@ RemoteButton {
     property bool unmatched: false
     property string placeholderText
     property bool highlighted: false
+    property int focusHeadroom: AppTheme.focusHeadroom
 
     readonly property bool hasArt: artSource.toString().length > 0
     readonly property bool showPlaceholderArt: unmatched && !hasArt
@@ -92,7 +93,7 @@ RemoteButton {
     }
 
     implicitWidth: defaultWidth
-    implicitHeight: AppTheme.focusHeadroom
+    implicitHeight: root.focusHeadroom
                     + _art.height + AppTheme.spacing8
                     + _title.implicitHeight
                     + (meta.length > 0 ? 2 + _meta.implicitHeight : 0)
@@ -110,7 +111,7 @@ RemoteButton {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.topMargin: AppTheme.focusHeadroom
+            anchors.topMargin: root.focusHeadroom
             height: width * root.artAspect
 
             transformOrigin: Item.Bottom

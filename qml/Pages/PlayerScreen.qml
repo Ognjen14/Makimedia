@@ -258,7 +258,7 @@ Item {
             break
         case Qt.Key_Up:
             if (!root.focusNextEpisodeOffer())
-                root.revealControls()
+                root.focusTopBar()
             event.accepted = true
             break
         case Qt.Key_MediaPlay:
@@ -619,9 +619,37 @@ Item {
     function focusPlaybackControls() {
         revealControls()
         if (_toolChips.visible)
-            _toolChips.focusFirst()
+            focusSeekOrTools()
         else
             pendingToolFocus = true
+    }
+
+    function focusSeekOrTools() {
+        if (_seek.enabled)
+            _seek.forceActiveFocus(Qt.TabFocusReason)
+        else
+            _toolChips.focusFirst()
+    }
+
+    function focusTopBar() {
+        const shown = root.chromeVisible
+        revealControls()
+        if (shown)
+            _back.forceActiveFocus(Qt.TabFocusReason)
+    }
+
+    function focusInChrome() {
+        for (let walk = Window.activeFocusItem; walk; walk = walk.parent) {
+            if (walk === _topBar || walk === _bottomBar)
+                return true
+        }
+        return false
+    }
+
+    onControlsVisibleChanged: {
+        if (!controlsVisible && S.AppTheme.remoteNavigation
+                && root.focusInChrome())
+            root.releaseControlFocus()
     }
 
     function releaseControlFocus() {
@@ -888,6 +916,11 @@ Item {
         opacity: root.chromeVisible ? 1 : 0
         visible: opacity > 0.01
 
+        Keys.onDownPressed: root.releaseControlFocus()
+        Keys.onUpPressed: root.revealControls()
+        Keys.onLeftPressed: root.revealControls()
+        Keys.onRightPressed: root.revealControls()
+
         Behavior on opacity {
             NumberAnimation { duration: 160 }
         }
@@ -909,6 +942,7 @@ Item {
             iconSource: S.Icons.chevronLeft
             tintColor: "#FFFFFF"
             accessibleName: qsTr("Back to library")
+            KeyNavigation.right: _miniButton
             onClicked: root.backRequested()
         }
 
@@ -977,15 +1011,22 @@ Item {
             spacing: S.AppTheme.spacing4
 
             Ctrl.IconButton {
+                id: _miniButton
+
                 iconSource: S.Icons.miniPlayer
                 tintColor: "#FFFFFF"
                 visible: System.supportsMiniPlayer
                 accessibleName: qsTr("Mini player")
                 enabled: MpvPlayer.fileLoaded
+                KeyNavigation.left: _back
+                KeyNavigation.right: _lockButton
                 onClicked: root.miniPlayerToggleRequested()
             }
 
             Ctrl.IconButton {
+                id: _lockButton
+
+                KeyNavigation.left: _miniButton
                 iconSource: S.Icons.lock
                 tintColor: "#FFFFFF"
                 visible: !System.isTelevision
@@ -1120,6 +1161,13 @@ Item {
                                 : S.AppTheme.seekBarHandleSize
                     previewEnabled: MpvPlayer.fileLoaded
                     previewSource: SeekPreview.frameUrl
+                    keyStep: root.skipSeconds
+
+                    Keys.onUpPressed: root.releaseControlFocus()
+                    Keys.onDownPressed: {
+                        root.revealControls()
+                        _toolChips.focusFirst()
+                    }
 
                     onSeekRequested: (seconds) => root.seekTo(seconds)
                     onScrubbing: root.revealControls()
@@ -1149,18 +1197,26 @@ Item {
                     const next = current.nextItemInFocusChain(forward)
                     if (next && next.parent === _toolChips)
                         next.forceActiveFocus(Qt.TabFocusReason)
+                    root.revealControls()
                 }
 
                 onVisibleChanged: {
                     if (visible && root.pendingToolFocus) {
                         root.pendingToolFocus = false
-                        focusFirst()
+                        root.focusSeekOrTools()
                     }
                 }
 
                 Keys.onLeftPressed: _toolChips.step(false)
                 Keys.onRightPressed: _toolChips.step(true)
-                Keys.onUpPressed: root.releaseControlFocus()
+                Keys.onDownPressed: root.revealControls()
+                Keys.onUpPressed: {
+                    root.revealControls()
+                    if (_seek.enabled)
+                        _seek.forceActiveFocus(Qt.TabFocusReason)
+                    else
+                        root.releaseControlFocus()
+                }
 
                 Ctrl.ToolChip {
                     text: root.audioLabel()
@@ -1230,8 +1286,12 @@ Item {
         }
 
         onVisibleChanged: {
-            if (visible && S.AppTheme.remoteNavigation)
+            if (!S.AppTheme.remoteNavigation)
+                return
+            if (visible)
                 forceActiveFocus(Qt.TabFocusReason)
+            else if (focus && !S.PopupRegistry.hasOpen)
+                root.forceActiveFocus(Qt.TabFocusReason)
         }
 
         Keys.onPressed: (event) => {
@@ -1248,7 +1308,7 @@ Item {
                 event.accepted = true
                 break
             case Qt.Key_Up:
-                root.revealControls()
+                root.focusTopBar()
                 event.accepted = true
                 break
             }
