@@ -90,8 +90,8 @@ android {
         minSdkVersion qtMinSdkVersion
         targetSdkVersion 36
         ndk.abiFilters = qtTargetAbiList.split(",")
-        versionCode 3
-        versionName "1.0.4"
+        versionCode 4
+        versionName "1.0.5"
         applicationId "com.topicdev.makimedia.org"
     }
 }
