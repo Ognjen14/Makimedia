@@ -170,6 +170,20 @@ void AppSettings::setCloseToTray(bool value)
     emit closeToTrayChanged();
 }
 
+bool AppSettings::windowsInviteDismissed() const
+{
+    return m_settings.value(QStringLiteral("windowsInviteDismissed"), false).toBool();
+}
+
+void AppSettings::setWindowsInviteDismissed(bool value)
+{
+    if (windowsInviteDismissed() == value) {
+        return;
+    }
+    m_settings.setValue(QStringLiteral("windowsInviteDismissed"), value);
+    emit windowsInviteDismissedChanged();
+}
+
 bool AppSettings::trayNoticeSeen() const
 {
     return m_settings.value(QStringLiteral("trayNoticeSeen"), false).toBool();

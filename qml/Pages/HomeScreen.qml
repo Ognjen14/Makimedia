@@ -27,6 +27,12 @@ Item {
     signal drawerRequested()
 
     readonly property bool acceptsFocus: hasAnything || Streaming.offerVisible
+                                         || showsWindowsInvite
+
+    readonly property bool showsWindowsInvite:
+        Streaming.canConnect && !Streaming.connected && !Streaming.connecting
+        && !Streaming.offerVisible && Streaming.storedLibraries.count === 0
+        && !AppSettings.windowsInviteDismissed
 
     function focusLastRow() {
         for (let i = rows.length - 1; i >= 0; --i) {
@@ -133,6 +139,12 @@ Item {
         if (Streaming.offerVisible) {
             Library.noteUi("home steps up onto the offer to connect")
             _connectOffer.forceActiveFocus(Qt.TabFocusReason)
+            _scroll.contentY = 0
+            return true
+        }
+        if (root.showsWindowsInvite) {
+            Library.noteUi("home steps up onto the invitation to stream from a PC")
+            _inviteMain.forceActiveFocus(Qt.TabFocusReason)
             _scroll.contentY = 0
             return true
         }
@@ -321,13 +333,106 @@ Item {
         }
     }
 
+    Rectangle {
+        id: _inviteCard
+
+        onVisibleChanged: {
+            if (!visible && (_inviteMain.activeFocus || _inviteLater.activeFocus))
+                Qt.callLater(root.takeFocus)
+        }
+
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.leftMargin: S.AppTheme.spacing16
+        anchors.rightMargin: S.AppTheme.spacing16
+        anchors.topMargin: visible ? S.AppTheme.spacing8 : 0
+        visible: root.showsWindowsInvite
+        height: visible ? _inviteRow.implicitHeight + 2 * S.AppTheme.spacing16 : 0
+        radius: S.AppTheme.radiusMedium
+        color: S.AppTheme.surfaceVariant
+        z: 2
+
+        Item {
+            id: _inviteRow
+
+            anchors.fill: parent
+            anchors.margins: S.AppTheme.spacing16
+            implicitHeight: Math.max(_inviteText.implicitHeight, _inviteButtons.implicitHeight)
+
+            Column {
+                id: _inviteText
+
+                anchors.left: parent.left
+                anchors.right: _inviteButtons.left
+                anchors.rightMargin: S.AppTheme.spacing12
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: S.AppTheme.spacing2
+
+                Text {
+                    width: parent.width
+                    text: qsTr("Films and shows on your PC? Watch them here")
+                    color: S.AppTheme.textPrimary
+                    font.pixelSize: S.AppTheme.fs16
+                    font.weight: Font.DemiBold
+                    wrapMode: Text.Wrap
+                }
+
+                Text {
+                    width: parent.width
+                    text: System.isTelevision
+                          ? qsTr("Install Makimedia for Windows from the Microsoft Store on your PC (or visit makimedia.org there), start streaming, and this TV finds it.")
+                          : qsTr("Install Makimedia for Windows from the Microsoft Store, start streaming, and this device finds your PC.")
+                    color: S.AppTheme.textSecondary
+                    font.pixelSize: S.AppTheme.fs13
+                    wrapMode: Text.Wrap
+                }
+            }
+
+            Row {
+                id: _inviteButtons
+
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: S.AppTheme.spacing8
+
+                Ctrl.AppButton {
+                    id: _inviteLater
+
+                    visible: !System.isTelevision
+                    size: Ctrl.AppButton.Medium
+                    variant: Ctrl.AppButton.Plain
+                    text: qsTr("Not now")
+                    onClicked: AppSettings.windowsInviteDismissed = true
+                }
+
+                Ctrl.AppButton {
+                    id: _inviteMain
+
+                    size: Ctrl.AppButton.Medium
+                    variant: System.isTelevision ? Ctrl.AppButton.Outlined
+                                                 : Ctrl.AppButton.Filled
+                    text: System.isTelevision ? qsTr("Got it") : qsTr("Get it")
+                    Keys.onLeftPressed: root.drawerRequested()
+                    Keys.onDownPressed: root.takeFocus()
+                    onClicked: {
+                        if (!System.isTelevision)
+                            Qt.openUrlExternally(Streaming.windowsAppUrl)
+                        AppSettings.windowsInviteDismissed = true
+                    }
+                }
+            }
+        }
+    }
+
     Flickable {
         id: _scroll
 
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: _connectCard.visible ? _connectCard.bottom : parent.top
-        anchors.topMargin: _connectCard.visible ? S.AppTheme.spacing8 : 0
+        anchors.top: _connectCard.visible ? _connectCard.bottom
+                                          : (_inviteCard.visible ? _inviteCard.bottom : parent.top)
+        anchors.topMargin: _connectCard.visible || _inviteCard.visible ? S.AppTheme.spacing8 : 0
         anchors.bottom: parent.bottom
         contentHeight: _column.implicitHeight + 2 * S.AppTheme.spacing16
         clip: true

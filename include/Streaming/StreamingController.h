@@ -36,6 +36,7 @@ class StreamingController : public QObject
 
     Q_PROPERTY(bool canServe READ canServe CONSTANT FINAL)
     Q_PROPERTY(bool canConnect READ canConnect CONSTANT FINAL)
+    Q_PROPERTY(QString windowsAppUrl READ windowsAppUrl CONSTANT FINAL)
 
     Q_PROPERTY(bool serving READ serving NOTIFY servingChanged FINAL)
     Q_PROPERTY(QString serverName READ serverName CONSTANT FINAL)
@@ -76,6 +77,7 @@ public:
 
     bool canServe() const;
     bool canConnect() const;
+    QString windowsAppUrl() const;
 
     bool serving() const;
     QString serverName() const;

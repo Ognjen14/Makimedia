@@ -148,6 +148,11 @@ bool StreamingController::canServe() const
 #endif
 }
 
+QString StreamingController::windowsAppUrl() const
+{
+    return QStringLiteral("https://apps.microsoft.com/search?query=Makimedia");
+}
+
 bool StreamingController::canConnect() const
 {
 #ifdef Q_OS_ANDROID

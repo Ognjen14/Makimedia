@@ -18,6 +18,7 @@ Item {
     signal remotePlayRequested(string url)
 
     readonly property bool acceptsFocus: true
+    readonly property bool libraryLocked: Streaming.connected || Streaming.serving
     readonly property string sourceCodeUrl: "https://github.com/Ognjen14/Makimedia"
     readonly property string websiteUrl: "https://makimedia.org/"
     readonly property string openSubtitlesUrl: "https://www.opensubtitles.com"
@@ -654,6 +655,18 @@ Item {
 
             Ctrl.ListRow {
                 width: parent.width
+                visible: Streaming.serving
+                height: visible ? implicitHeight : 0
+                leading: Ctrl.ListRow.Icon
+                iconSource: S.Icons.lock
+                hoverEnabled: false
+                focusPolicy: Qt.NoFocus
+                title: qsTr("The library holds still while streaming")
+                subtitle: qsTr("Stop streaming to scan, match or change what is in it")
+            }
+
+            Ctrl.ListRow {
+                width: parent.width
                 visible: System.usesManagedStorageRoots
                          && !System.videoPermissionGranted
                 height: visible ? implicitHeight : 0
@@ -674,7 +687,7 @@ Item {
 
             Ctrl.ListRow {
                 width: parent.width
-                visible: !Streaming.connected && !System.isTelevision
+                visible: !root.libraryLocked && !System.isTelevision
                 height: visible ? implicitHeight : 0
                 leading: Ctrl.ListRow.Icon
                 iconSource: S.Icons.folder
@@ -684,7 +697,7 @@ Item {
             }
 
             Repeater {
-                model: Streaming.connected ? [] : root.declinedVolumes
+                model: root.libraryLocked ? [] : root.declinedVolumes
 
                 delegate: Column {
                     required property var modelData
@@ -709,12 +722,12 @@ Item {
 
             Ctrl.Divider {
                 width: parent.width
-                visible: !Streaming.connected && !System.isTelevision
+                visible: !root.libraryLocked && !System.isTelevision
             }
 
             Ctrl.ListRow {
                 width: parent.width
-                visible: !Streaming.connected
+                visible: !root.libraryLocked
                 height: visible ? implicitHeight : 0
                 leading: Ctrl.ListRow.Icon
                 iconSource: S.Icons.search
@@ -732,12 +745,12 @@ Item {
 
             Ctrl.Divider {
                 width: parent.width
-                visible: !Streaming.connected && Metadata.creditsSweeping
+                visible: !root.libraryLocked && Metadata.creditsSweeping
             }
 
             Ctrl.ListRow {
                 width: parent.width
-                visible: !Streaming.connected && Metadata.creditsSweeping
+                visible: !root.libraryLocked && Metadata.creditsSweeping
                 height: visible ? implicitHeight : 0
                 leading: Ctrl.ListRow.Icon
                 iconSource: S.Icons.spinner
@@ -751,12 +764,12 @@ Item {
 
             Ctrl.Divider {
                 width: parent.width
-                visible: !Streaming.connected && Metadata.artworkWarming
+                visible: !root.libraryLocked && Metadata.artworkWarming
             }
 
             Ctrl.ListRow {
                 width: parent.width
-                visible: !Streaming.connected && Metadata.artworkWarming
+                visible: !root.libraryLocked && Metadata.artworkWarming
                 height: visible ? implicitHeight : 0
                 leading: Ctrl.ListRow.Icon
                 iconSource: S.Icons.spinner
@@ -786,12 +799,12 @@ Item {
 
             Ctrl.Divider {
                 width: parent.width
-                visible: !Streaming.connected && Library.hiddenCollections.length > 0
+                visible: !root.libraryLocked && Library.hiddenCollections.length > 0
             }
 
             Ctrl.ListRow {
                 width: parent.width
-                visible: !Streaming.connected && Library.hiddenCollections.length > 0
+                visible: !root.libraryLocked && Library.hiddenCollections.length > 0
                 leading: Ctrl.ListRow.Icon
                 iconSource: S.Icons.collections
                 title: qsTr("Collections you removed")
@@ -804,12 +817,12 @@ Item {
 
             Ctrl.Divider {
                 width: parent.width
-                visible: !Streaming.connected && Library.hiddenCollectionFilms.length > 0
+                visible: !root.libraryLocked && Library.hiddenCollectionFilms.length > 0
             }
 
             Ctrl.ListRow {
                 width: parent.width
-                visible: !Streaming.connected && Library.hiddenCollectionFilms.length > 0
+                visible: !root.libraryLocked && Library.hiddenCollectionFilms.length > 0
                 leading: Ctrl.ListRow.Icon
                 iconSource: S.Icons.collections
                 title: qsTr("Films you took out of a collection")
@@ -822,12 +835,12 @@ Item {
 
             Ctrl.Divider {
                 width: parent.width
-                visible: !Streaming.connected && Library.discardedShows.length > 0
+                visible: !root.libraryLocked && Library.discardedShows.length > 0
             }
 
             Ctrl.ListRow {
                 width: parent.width
-                visible: !Streaming.connected && Library.discardedShows.length > 0
+                visible: !root.libraryLocked && Library.discardedShows.length > 0
                 leading: Ctrl.ListRow.Icon
                 iconSource: S.Icons.tvShows
                 title: qsTr("Folders you said are not shows")
@@ -840,13 +853,13 @@ Item {
 
             Ctrl.Divider {
                 width: parent.width
-                visible: !System.isTelevision && !Streaming.connected
+                visible: !System.isTelevision && !root.libraryLocked
                          && Library.removedFiles.count > 0
             }
 
             Ctrl.ListRow {
                 width: parent.width
-                visible: !System.isTelevision && !Streaming.connected
+                visible: !System.isTelevision && !root.libraryLocked
                          && Library.removedFiles.count > 0
                 leading: Ctrl.ListRow.Icon
                 iconSource: S.Icons.noVideo
@@ -1388,6 +1401,21 @@ Item {
             Ctrl.SectionLabel {
                 text: qsTr("PCs streaming on this network")
                 topPadding: Streaming.connected ? S.AppTheme.spacing16 : 0
+            }
+
+            Ctrl.ListRow {
+                width: parent.width
+                leading: Ctrl.ListRow.Icon
+                iconSource: S.Icons.play
+                title: qsTr("Makimedia for Windows")
+                subtitle: System.isTelevision
+                          ? qsTr("Your PC streams its library here. Get it from the Microsoft Store on the PC, or visit makimedia.org")
+                          : qsTr("Your PC streams its library to this device. Get it from the Microsoft Store")
+                trailingText: System.isTelevision ? "" : qsTr("Open")
+                onClicked: {
+                    if (!System.isTelevision)
+                        Qt.openUrlExternally(Streaming.windowsAppUrl)
+                }
             }
 
             Text {

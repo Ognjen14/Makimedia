@@ -404,6 +404,7 @@ Item {
 
     readonly property var _navState: _navDefinitions.map(function (entry) {
         const heldByStreaming = Streaming.serving && entry.key !== "streaming"
+                                && entry.key !== "settings"
         const ownLibraryOnly = Streaming.connected
                                && root._hiddenWhileConnected.indexOf(entry.key) >= 0
         return {
