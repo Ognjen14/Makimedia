@@ -11,6 +11,7 @@ Item {
     property bool opened: false
     property string acceptText: qsTr("OK")
     property string dismissText: ""
+    property string extraText: ""
     property real maxWidth: 420
     property bool closeOnScrim: true
 
@@ -18,6 +19,7 @@ Item {
 
     signal accepted()
     signal dismissed()
+    signal extraChosen()
     signal closed()
 
     function _claim(item) {
@@ -46,6 +48,11 @@ Item {
 
     function dismiss() {
         dismissed()
+        close()
+    }
+
+    function chooseExtra() {
+        extraChosen()
         close()
     }
 
@@ -155,12 +162,27 @@ Item {
                 spacing: AppTheme.spacing8
 
                 AppButton {
+                    id: _extra
+
+                    visible: root.extraText.length > 0
+                    text: root.extraText
+                    variant: AppButton.Plain
+                    size: AppButton.Medium
+                    Keys.onRightPressed: root._claim(_dismiss.visible ? _dismiss : _accept)
+                    onClicked: root.chooseExtra()
+                }
+
+                AppButton {
                     id: _dismiss
 
                     visible: root.dismissText.length > 0
                     text: root.dismissText
                     variant: AppButton.Outlined
                     size: AppButton.Medium
+                    Keys.onLeftPressed: {
+                        if (_extra.visible)
+                            root._claim(_extra)
+                    }
                     Keys.onRightPressed: root._claim(_accept)
                     onClicked: root.dismiss()
                 }
@@ -175,6 +197,8 @@ Item {
                     Keys.onLeftPressed: {
                         if (_dismiss.visible)
                             root._claim(_dismiss)
+                        else if (_extra.visible)
+                            root._claim(_extra)
                     }
                     onClicked: root.accept()
                 }

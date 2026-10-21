@@ -3,6 +3,7 @@
 #include "MmLog.h"
 
 #include <QCryptographicHash>
+#include <QDateTime>
 #include <QUuid>
 
 AppSettings::AppSettings(QObject *parent)
@@ -168,6 +169,49 @@ void AppSettings::setCloseToTray(bool value)
     }
     m_settings.setValue(QStringLiteral("closeToTray"), value);
     emit closeToTrayChanged();
+}
+
+void AppSettings::noteTitleFinished()
+{
+    const int finished = m_settings.value(QStringLiteral("review/finished"), 0).toInt() + 1;
+    m_settings.setValue(QStringLiteral("review/finished"), finished);
+    MM_LOG_I() << "finished titles so far:" << finished;
+}
+
+bool AppSettings::reviewDue()
+{
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    if (!m_settings.contains(QStringLiteral("review/firstSeen"))) {
+        m_settings.setValue(QStringLiteral("review/firstSeen"), now);
+    }
+    if (m_settings.value(QStringLiteral("review/settled"), false).toBool()) {
+        return false;
+    }
+
+    const int finished = m_settings.value(QStringLiteral("review/finished"), 0).toInt();
+    if (m_settings.value(QStringLiteral("review/postponed"), false).toBool()) {
+        return finished >= m_settings.value(QStringLiteral("review/nextCount")).toInt()
+            || now >= m_settings.value(QStringLiteral("review/nextTime")).toLongLong();
+    }
+
+    const qint64 firstSeen = m_settings.value(QStringLiteral("review/firstSeen")).toLongLong();
+    return finished >= 5 && now - firstSeen >= 7LL * 24 * 60 * 60;
+}
+
+void AppSettings::reviewLater()
+{
+    const int finished = m_settings.value(QStringLiteral("review/finished"), 0).toInt();
+    m_settings.setValue(QStringLiteral("review/postponed"), true);
+    m_settings.setValue(QStringLiteral("review/nextCount"), finished + 10);
+    m_settings.setValue(QStringLiteral("review/nextTime"),
+                        QDateTime::currentSecsSinceEpoch() + 30LL * 24 * 60 * 60);
+    MM_LOG_I() << "review asked again after 10 more titles or 30 days";
+}
+
+void AppSettings::reviewSettled()
+{
+    m_settings.setValue(QStringLiteral("review/settled"), true);
+    MM_LOG_I() << "review will not be asked for again";
 }
 
 bool AppSettings::windowsInviteDismissed() const

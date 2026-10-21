@@ -29,6 +29,9 @@
 
 #  include <windows.h>
 #  include <shlobj.h>
+#  include <appmodel.h>
+
+#  include <string>
 #endif
 
 namespace {
@@ -431,6 +434,45 @@ bool SystemBridge::launchedAtSignIn() const
     return m_launchedAtSignIn == 1;
 #else
     return false;
+#endif
+}
+
+QString SystemBridge::storeReviewUrl() const
+{
+#if defined(Q_OS_ANDROID)
+    QString package = QStringLiteral("com.topicdev.makimedia.org");
+    QJniObject context(QNativeInterface::QAndroidApplication::context());
+    if (context.isValid()) {
+        const QString name =
+            context.callObjectMethod("getPackageName", "()Ljava/lang/String;").toString();
+        if (!name.isEmpty()) {
+            package = name;
+        }
+    }
+    return QStringLiteral("market://details?id=") + package;
+#elif defined(Q_OS_WIN)
+    UINT32 length = 0;
+    if (GetCurrentPackageFamilyName(&length, nullptr) == ERROR_INSUFFICIENT_BUFFER && length > 0) {
+        std::wstring family(length, L'\0');
+        if (GetCurrentPackageFamilyName(&length, family.data()) == ERROR_SUCCESS) {
+            return QStringLiteral("ms-windows-store://review/?PFN=")
+                   + QString::fromWCharArray(family.c_str());
+        }
+    }
+    return QStringLiteral("ms-windows-store://review/?ProductId=9P5VGK8G8207");
+#else
+    return QString();
+#endif
+}
+
+QString SystemBridge::storeName() const
+{
+#if defined(Q_OS_ANDROID)
+    return QStringLiteral("Google Play");
+#elif defined(Q_OS_WIN)
+    return QStringLiteral("Microsoft Store");
+#else
+    return QString();
 #endif
 }
 

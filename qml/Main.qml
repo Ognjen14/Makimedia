@@ -558,6 +558,96 @@ ApplicationWindow {
 
     property string _openHandle: ""
     property bool _skipResume: false
+    property bool _finishCounted: false
+
+    function _noteFinished() {
+        if (_finishCounted || _openHandle.length === 0)
+            return
+        const done = MpvPlayer.endReached
+                     || (MpvPlayer.duration > 0 && MpvPlayer.position / MpvPlayer.duration >= 0.9)
+        if (!done)
+            return
+        _finishCounted = true
+        AppSettings.noteTitleFinished()
+    }
+
+    function _offerAfterPlayer() {
+        if (_stack.depth > 1 || S.PopupRegistry.hasOpen || _setupWindow.shown)
+            return
+        if (AppUpdates.state !== 0 && !_updateDialog.shownThisRun) {
+            _updateDialog.shownThisRun = true
+            _updateDialog.open()
+            return
+        }
+        if (System.storeName.length > 0 && AppSettings.reviewDue())
+            _reviewDialog.open()
+    }
+
+    C.AppDialog {
+        id: _updateDialog
+
+        property bool shownThisRun: false
+
+        z: 110
+        title: AppUpdates.state === 2 ? qsTr("Update ready") : qsTr("Update available")
+        message: AppUpdates.state === 2
+                 ? qsTr("Restart Makimedia to finish updating.")
+                 : qsTr("A new version of Makimedia is in the %1.").arg(System.storeName)
+        acceptText: AppUpdates.state === 2 ? qsTr("Restart") : qsTr("Update")
+        dismissText: qsTr("Later")
+        onAccepted: AppUpdates.install()
+    }
+
+    C.AppDialog {
+        id: _reviewDialog
+
+        property bool answered: false
+
+        z: 110
+        title: qsTr("Enjoying Makimedia?")
+        message: qsTr("A review on %1 helps others find it.").arg(System.storeName)
+        acceptText: qsTr("Rate")
+        dismissText: qsTr("Later")
+        extraText: qsTr("No thanks")
+        onOpenedChanged: if (opened) answered = false
+        onAccepted: {
+            answered = true
+            AppSettings.reviewSettled()
+            Library.noteUi("review: opening the store")
+            if (!Qt.openUrlExternally(System.storeReviewUrl) && System.storeName === "Google Play")
+                Qt.openUrlExternally("https://play.google.com/store/apps/details?id=com.topicdev.makimedia.org")
+        }
+        onExtraChosen: {
+            answered = true
+            AppSettings.reviewSettled()
+        }
+        onClosed: {
+            if (!answered)
+                AppSettings.reviewLater()
+        }
+    }
+
+    Timer {
+        id: _updateCheck
+
+        interval: 15000
+        running: true
+        onTriggered: {
+            if (_stack.depth > 1 || _setupWindow.shown) {
+                restart()
+                return
+            }
+            AppUpdates.check()
+        }
+    }
+
+    Connections {
+        target: AppUpdates
+
+        function onStateChanged() {
+            Qt.callLater(window._offerAfterPlayer)
+        }
+    }
 
     function openDropped(urls) {
         for (let i = 0; i < urls.length; i++) {
@@ -626,8 +716,10 @@ ApplicationWindow {
         Library.noteUi("play: handle resolved after " + (Date.now() - started) + " ms")
 
         _savePlayback()
+        _noteFinished()
 
         _openHandle = handle
+        _finishCounted = false
         _skipResume = fromStart === true
         _probeStored = false
         _probeTimer.stop()
@@ -669,6 +761,7 @@ ApplicationWindow {
         }
 
         _savePlayback()
+        _noteFinished()
         _openHandle = ""
         System.setImmersiveMode(false)
         System.releaseScreenBrightness()
@@ -684,11 +777,25 @@ ApplicationWindow {
 
         if (Streaming.lostServerName.length > 0)
             Streaming.acknowledgeLost()
+
+        _offerTimer.restart()
+    }
+
+    Timer {
+        id: _offerTimer
+
+        interval: 1200
+        onTriggered: window._offerAfterPlayer()
     }
 
     Connections {
         target: MpvPlayer
         function onPausedChanged() { window._applyScreenAwake() }
+
+        function onEndReachedChanged() {
+            if (MpvPlayer.endReached)
+                window._noteFinished()
+        }
 
         function onDurationChanged() { window._tryStoreProbe() }
 

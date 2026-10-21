@@ -34,6 +34,8 @@ class SystemBridge : public QObject, public IScreenLock
     Q_PROPERTY(bool canStartWithWindows READ canStartWithWindows CONSTANT FINAL)
     Q_PROPERTY(int startWithWindowsState READ startWithWindowsState NOTIFY startWithWindowsChanged FINAL)
     Q_PROPERTY(bool launchedAtSignIn READ launchedAtSignIn CONSTANT FINAL)
+    Q_PROPERTY(QString storeReviewUrl READ storeReviewUrl CONSTANT FINAL)
+    Q_PROPERTY(QString storeName READ storeName CONSTANT FINAL)
     Q_PROPERTY(bool videoPermissionGranted READ hasVideoPermission NOTIFY videoPermissionChanged FINAL)
     Q_PROPERTY(bool videoPermissionBlocked READ videoPermissionBlocked NOTIFY videoPermissionChanged FINAL)
     Q_PROPERTY(bool videoAccessPartial READ videoAccessPartial NOTIFY videoPermissionChanged FINAL)
@@ -128,6 +130,8 @@ public:
     Q_INVOKABLE void setStartWithWindows(bool enabled);
     Q_INVOKABLE void refreshStartWithWindows();
     bool launchedAtSignIn() const;
+    QString storeReviewUrl() const;
+    QString storeName() const;
 
     qreal keyboardHeight() const;
 

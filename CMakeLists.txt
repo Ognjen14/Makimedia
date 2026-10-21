@@ -184,6 +184,7 @@ qt_add_executable(appmakimedia
 
     #SOURCE
     src/SystemBridge.cpp
+    src/AppUpdates.cpp
 
     src/Player/MpvController.cpp
     src/Player/MpvRenderItem.cpp
@@ -222,6 +223,7 @@ qt_add_executable(appmakimedia
     include/Subtitles/SubtitleSearch.h
 
     include/SystemBridge.h
+    include/AppUpdates.h
 
     include/Player/MpvController.h
     include/Player/MpvRenderItem.h
@@ -294,6 +296,7 @@ if(WIN32)
         set_source_files_properties(
             src/Platform/Windows/WindowsTransportControls.cpp
             src/Platform/Windows/WindowsStartup.cpp
+            src/AppUpdates.cpp
             PROPERTIES
                 COMPILE_OPTIONS "/std:c++20"
                 COMPILE_DEFINITIONS "_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS")

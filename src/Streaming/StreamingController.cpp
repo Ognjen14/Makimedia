@@ -150,7 +150,7 @@ bool StreamingController::canServe() const
 
 QString StreamingController::windowsAppUrl() const
 {
-    return QStringLiteral("https://apps.microsoft.com/search?query=Makimedia");
+    return QStringLiteral("https://apps.microsoft.com/detail/9P5VGK8G8207");
 }
 
 bool StreamingController::canConnect() const

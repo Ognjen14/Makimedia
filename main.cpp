@@ -39,6 +39,7 @@
 #include "Player/MpvRenderItem.h"
 #include "SingleInstance.h"
 #include "SystemBridge.h"
+#include "AppUpdates.h"
 
 namespace {
 
@@ -98,6 +99,8 @@ int main(int argc, char *argv[])
 
     static SystemBridge systemBridge;
     qmlRegisterSingletonInstance("com.topicdev.makimedia", 1, 0, "System", &systemBridge);
+    qmlRegisterSingletonInstance("com.topicdev.makimedia", 1, 0, "AppUpdates",
+                                 AppUpdates::instance());
 
 #if defined(Q_OS_ANDROID)
     if (SystemBridge::runningOnTelevision()) {

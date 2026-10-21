@@ -22,6 +22,11 @@ class AppSettings : public QObject
     Q_PROPERTY(bool streamOnLaunch READ streamOnLaunch WRITE setStreamOnLaunch NOTIFY streamOnLaunchChanged FINAL)
     Q_PROPERTY(bool trayNoticeSeen READ trayNoticeSeen WRITE setTrayNoticeSeen NOTIFY trayNoticeSeenChanged FINAL)
     Q_PROPERTY(bool windowsInviteDismissed READ windowsInviteDismissed WRITE setWindowsInviteDismissed NOTIFY windowsInviteDismissedChanged FINAL)
+
+    Q_INVOKABLE void noteTitleFinished();
+    Q_INVOKABLE bool reviewDue();
+    Q_INVOKABLE void reviewLater();
+    Q_INVOKABLE void reviewSettled();
     Q_PROPERTY(bool forceHardwareDecoding READ forceHardwareDecoding WRITE setForceHardwareDecoding NOTIFY forceHardwareDecodingChanged FINAL)
     Q_PROPERTY(int subtitleScalePercent READ subtitleScalePercent WRITE setSubtitleScalePercent NOTIFY subtitleScalePercentChanged FINAL)
     Q_PROPERTY(QString subtitleEdgeStyle READ subtitleEdgeStyle WRITE setSubtitleEdgeStyle NOTIFY subtitleEdgeStyleChanged FINAL)

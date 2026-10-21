@@ -24,6 +24,7 @@ dependencies {
     // AndroidX: back-press dispatcher, Activity Result APIs. Pull in if you need
     // modern Activity callbacks beyond what QtActivity gives you.
     implementation 'androidx.activity:activity:1.9.3'
+    implementation 'com.google.android.play:app-update:2.1.0'
 
     implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
 }
