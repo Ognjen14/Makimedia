@@ -18,6 +18,7 @@ class AppSettings : public QObject
     Q_PROPERTY(bool keepScreenOn READ keepScreenOn WRITE setKeepScreenOn NOTIFY keepScreenOnChanged FINAL)
     Q_PROPERTY(bool autoPlayNextEpisode READ autoPlayNextEpisode WRITE setAutoPlayNextEpisode NOTIFY autoPlayNextEpisodeChanged FINAL)
     Q_PROPERTY(bool closeToTray READ closeToTray WRITE setCloseToTray NOTIFY closeToTrayChanged FINAL)
+    Q_PROPERTY(bool streamOnLaunch READ streamOnLaunch WRITE setStreamOnLaunch NOTIFY streamOnLaunchChanged FINAL)
     Q_PROPERTY(bool trayNoticeSeen READ trayNoticeSeen WRITE setTrayNoticeSeen NOTIFY trayNoticeSeenChanged FINAL)
     Q_PROPERTY(bool forceHardwareDecoding READ forceHardwareDecoding WRITE setForceHardwareDecoding NOTIFY forceHardwareDecodingChanged FINAL)
     Q_PROPERTY(int subtitleScalePercent READ subtitleScalePercent WRITE setSubtitleScalePercent NOTIFY subtitleScalePercentChanged FINAL)
@@ -71,6 +72,8 @@ public:
     void setAutoPlayNextEpisode(bool value);
 
     bool closeToTray() const;
+    bool streamOnLaunch() const;
+    void setStreamOnLaunch(bool value);
     void setCloseToTray(bool value);
 
     bool trayNoticeSeen() const;
@@ -158,6 +161,7 @@ signals:
     void keepScreenOnChanged();
     void autoPlayNextEpisodeChanged();
     void closeToTrayChanged();
+    void streamOnLaunchChanged();
     void trayNoticeSeenChanged();
     void forceHardwareDecodingChanged();
     void subtitleScalePercentChanged();

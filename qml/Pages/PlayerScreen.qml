@@ -166,7 +166,7 @@ Item {
     property int speedIndex: 2
 
     readonly property var aspectModes: [
-        { label: qsTr("Fit"),    aspect: "-1",     pan: 0.0 },
+        { label: qsTr("Original"), aspect: "-1",   pan: 0.0 },
         { label: qsTr("Fill"),   aspect: "-1",     pan: 1.0 },
         { label: "16:9",         aspect: "16:9",   pan: 0.0 },
         { label: "16:10",        aspect: "16:10",  pan: 0.0 },
@@ -547,7 +547,7 @@ Item {
         panX = 0
         panY = 0
         MpvPlayer.resetVideoZoom()
-        _centreOsd.flash(mode.label, qsTr("Aspect"))
+        _centreOsd.flash(root.aspectLabel(), qsTr("Aspect"))
         revealControls()
     }
 
@@ -569,8 +569,22 @@ Item {
         applyAspect(aspectIndex + 1)
     }
 
+    function originalAspectText() {
+        const w = MpvPlayer.videoWidth
+        const h = MpvPlayer.videoHeight
+        if (w <= 0 || h <= 0)
+            return qsTr("Original")
+        const ratio = w / h
+        const named = [[16 / 9, "16:9"], [4 / 3, "4:3"], [16 / 10, "16:10"]]
+        for (let i = 0; i < named.length; ++i) {
+            if (Math.abs(ratio - named[i][0]) < 0.02)
+                return qsTr("Original · %1").arg(named[i][1])
+        }
+        return qsTr("Original · %1:1").arg(ratio.toFixed(2))
+    }
+
     function aspectLabel() {
-        return aspectModes[aspectIndex].label
+        return aspectIndex === 0 ? originalAspectText() : aspectModes[aspectIndex].label
     }
 
     function subtitleLabel() {
@@ -1233,6 +1247,13 @@ Item {
                     }
                 }
 
+                Ctrl.ToolChip {
+                    visible: System.isTelevision
+                    text: root.aspectLabel()
+                    active: root.aspectIndex !== 0
+                    onClicked: root.cycleAspect()
+                }
+
                 Keys.onLeftPressed: _toolChips.step(false)
                 Keys.onRightPressed: _toolChips.step(true)
                 Keys.onDownPressed: root.revealControls()
@@ -1273,8 +1294,9 @@ Item {
                 }
 
                 Ctrl.ToolChip {
+                    visible: !System.isTelevision
                     text: root.aspectLabel()
-                    active: MpvPlayer.aspectOverride !== "-1"
+                    active: root.aspectIndex !== 0
                     onClicked: root.cycleAspect()
                 }
 

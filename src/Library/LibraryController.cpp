@@ -1348,8 +1348,9 @@ void LibraryController::settleMovedFiles()
     const QStringList missing = m_scanMissing;
     m_scanMissing.clear();
 
-    const QList<QPair<QString, QString>> settled =
+    QList<QPair<QString, QString>> settled =
         m_fileRepository.settleMoves(missing, m_scanWritten);
+    settled += m_fileRepository.settleStrandedMoves();
     if (settled.isEmpty()) {
         return;
     }
@@ -1621,6 +1622,7 @@ void LibraryController::refreshPlayedFiles(const QList<qint64> &fileIds)
     if (m_view == View::ContinueWatching) {
         m_fileModel->setFiles(m_fileRepository.continueWatching(50));
     }
+    m_continueCount = m_fileRepository.continueWatchingCount();
 
     QList<qint64> mediaIds;
     for (const qint64 fileId : fileIds) {
@@ -1897,7 +1899,8 @@ QVariantMap LibraryController::fileInfo(const QString &handle)
     info.insert(QStringLiteral("watched"), file.playback.watched);
     info.insert(QStringLiteral("progress"), file.playback.progress());
     info.insert(QStringLiteral("hasPlaybackState"), file.playback.isValid());
-    info.insert(QStringLiteral("continueWatching"), continuesWatching(file));
+    info.insert(QStringLiteral("continueWatching"),
+                continuesWatching(file) || m_fileRepository.upNextSourceFor(file.id) > 0);
     info.insert(QStringLiteral("modified"),
                 file.modified.isValid()
                     ? QLocale().toString(file.modified.toLocalTime(),
@@ -3204,6 +3207,88 @@ void LibraryController::restoreRemoved(const QString &handle)
     rescanFoldersQuiet(folderIds);
 }
 
+bool LibraryController::removedFileOnDisk(const QString &handle) const
+{
+    IMediaSource *source = m_platform.mediaSource();
+    return source && source->exists(handle);
+}
+
+int LibraryController::missingAmong(const QStringList &handles) const
+{
+    int missing = 0;
+    for (const LibraryFile &file : m_fileRepository.byHandles(handles)) {
+        if (file.missing) {
+            ++missing;
+        }
+    }
+    return missing;
+}
+
+void LibraryController::removeMissingFiles(const QStringList &handles)
+{
+    if (refusesWhileHeld("removing missing files")) {
+        return;
+    }
+
+    QList<LibraryFile> missing;
+    for (const LibraryFile &file : m_fileRepository.byHandles(handles)) {
+        if (file.missing) {
+            missing.append(file);
+        }
+    }
+    if (missing.isEmpty()) {
+        return;
+    }
+
+    MM_LOG_I() << "taking" << missing.size() << "files no longer on disk out of the library";
+    takeOutOfLibrary(missing);
+}
+
+bool LibraryController::anyRemovedNotOnDisk() const
+{
+    const QStringList handles = m_removedFiles->handles();
+    for (const QString &handle : handles) {
+        if (!removedFileOnDisk(handle)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void LibraryController::forgetRemoved(const QString &handle)
+{
+    if (refusesWhileHeld("forgetting a removed file")) {
+        return;
+    }
+    if (m_fileRepository.forgetRemoved({ handle }) > 0) {
+        m_removedFiles->removeHandles({ handle });
+    }
+}
+
+int LibraryController::forgetRemovedNotOnDisk()
+{
+    if (refusesWhileHeld("forgetting removed files")) {
+        return 0;
+    }
+
+    QStringList gone;
+    const QStringList handles = m_removedFiles->handles();
+    for (const QString &handle : handles) {
+        if (!removedFileOnDisk(handle)) {
+            gone.append(handle);
+        }
+    }
+    if (gone.isEmpty()) {
+        return 0;
+    }
+
+    const int forgotten = m_fileRepository.forgetRemoved(gone);
+    if (forgotten > 0) {
+        m_removedFiles->removeHandles(gone);
+    }
+    return forgotten;
+}
+
 void LibraryController::restoreAllRemoved()
 {
     if (refusesWhileHeld("putting files back")) {
@@ -3709,8 +3794,15 @@ void LibraryController::removeFromContinueWatching(qint64 fileId)
 {
     MM_LOG_I() << "file" << fileId << "removed from continue watching";
     const LibraryFile file = m_fileRepository.byId(fileId);
-    if (m_playbackRepository.clear(fileId) && continuesWatching(file)) {
-        m_continueCount = qMax(0, m_continueCount - 1);
+    const bool upNext = !continuesWatching(file)
+                        && m_fileRepository.upNextSourceFor(fileId) > 0;
+    if (!upNext) {
+        m_playbackRepository.clear(fileId);
+    }
+
+    const EpisodeRecord episode = m_mediaRepository.episodeForFile(fileId);
+    if (episode.mediaId > 0) {
+        m_playbackRepository.forgetFinishedOfShow(episode.mediaId);
     }
     refreshPlayedFiles({fileId});
     emit fileCountChanged();

@@ -421,10 +421,9 @@ QList<QPair<QString, QString>> FileRepository::settleMoves(
     }
 
     const auto fingerprint = [](const LibraryFile &file) {
-        return QStringLiteral("%1|%2|%3")
+        return QStringLiteral("%1|%2")
             .arg(file.sizeBytes)
-            .arg(file.modified.toSecsSinceEpoch())
-            .arg(file.displayName.toLower());
+            .arg(file.modified.toSecsSinceEpoch());
     };
 
     QHash<QString, QList<LibraryFile>> gone;
@@ -445,17 +444,43 @@ QList<QPair<QString, QString>> FileRepository::settleMoves(
         }
     }
 
+    const auto standing = [this](const LibraryFile &file) {
+        QSqlQuery query(m_database.handle());
+        query.prepare(QStringLiteral(
+            "SELECT (EXISTS (SELECT 1 FROM episodes WHERE file_id = :id)) * 4"
+            "     + (EXISTS (SELECT 1 FROM file_media WHERE file_id = :id)) * 2"
+            "     + (EXISTS (SELECT 1 FROM playback_state WHERE file_id = :id))"));
+        query.bindValue(QStringLiteral(":id"), file.id);
+        return query.exec() && query.next() ? query.value(0).toInt() : 0;
+    };
+
     for (auto it = arrived.cbegin(); it != arrived.cend(); ++it) {
         const QList<LibraryFile> &from = gone.value(it.key());
         const QList<LibraryFile> &to = it.value();
-        if (from.size() != 1 || to.size() != 1) {
+        if (from.isEmpty() || to.size() != 1) {
             MM_LOG_I() << "not settling a move for" << it.key()
                        << "-" << from.size() << "gone and" << to.size()
                        << "arrived, which is ambiguous";
             continue;
         }
 
-        const LibraryFile &before = from.first();
+        LibraryFile before = from.first();
+        int bestStanding = standing(before);
+        for (const LibraryFile &candidate : from) {
+            const int candidateStanding = standing(candidate);
+            if (candidateStanding > bestStanding
+                || (candidateStanding == bestStanding && candidate.id > before.id)) {
+                before = candidate;
+                bestStanding = candidateStanding;
+            }
+        }
+        QList<qint64> earlierNames;
+        for (const LibraryFile &candidate : from) {
+            if (candidate.id != before.id) {
+                earlierNames.append(candidate.id);
+            }
+        }
+
         const LibraryFile &after = to.first();
         if (before.id == after.id) {
             continue;
@@ -491,16 +516,34 @@ QList<QPair<QString, QString>> FileRepository::settleMoves(
 
         run(QStringLiteral("UPDATE files SET handle = :handle,"
                            " parent_handle = :parent, folder_id = :folder,"
+                           " display_name = :name, name_key = :key,"
                            " missing = 0 WHERE id = :before"),
             {{QStringLiteral(":handle"), after.handle},
              {QStringLiteral(":parent"), after.parentHandle},
              {QStringLiteral(":folder"), after.folderId},
+             {QStringLiteral(":name"), after.displayName},
+             {QStringLiteral(":key"), TextFold::key(after.displayName)},
              {QStringLiteral(":before"), before.id}});
 
         run(QStringLiteral("UPDATE OR REPLACE external_subtitles"
                            " SET file_handle = :handle WHERE file_handle = :was"),
             {{QStringLiteral(":handle"), after.handle},
              {QStringLiteral(":was"), before.handle}});
+
+        run(QStringLiteral("UPDATE OR REPLACE match_overrides"
+                           " SET file_handle = :handle WHERE file_handle = :was"),
+            {{QStringLiteral(":handle"), after.handle},
+             {QStringLiteral(":was"), before.handle}});
+
+        run(QStringLiteral("UPDATE OR REPLACE discarded_shows"
+                           " SET file_handle = :handle WHERE file_handle = :was"),
+            {{QStringLiteral(":handle"), after.handle},
+             {QStringLiteral(":was"), before.handle}});
+
+        for (const qint64 earlier : std::as_const(earlierNames)) {
+            run(QStringLiteral("DELETE FROM files WHERE id = :earlier"),
+                {{QStringLiteral(":earlier"), earlier}});
+        }
 
         if (!ok) {
             m_database.rollback();
@@ -510,12 +553,53 @@ QList<QPair<QString, QString>> FileRepository::settleMoves(
             continue;
         }
 
-        MM_LOG_I() << "file" << before.id << "moved rather than vanished:"
-                   << before.handle << "->" << after.handle;
+        if (earlierNames.isEmpty()) {
+            MM_LOG_I() << "file" << before.id << "moved rather than vanished:"
+                       << before.handle << "->" << after.handle;
+        } else {
+            MM_LOG_I() << "file" << before.id << "moved rather than vanished:"
+                       << before.handle << "->" << after.handle << "- and"
+                       << earlierNames.size() << "earlier names of it forgotten";
+        }
         settled.append({before.handle, after.handle});
     }
 
     return settled;
+}
+
+QList<QPair<QString, QString>> FileRepository::settleStrandedMoves()
+{
+    QSqlQuery query(m_database.handle());
+    if (!query.exec(QStringLiteral(
+            "SELECT g.handle, a.handle FROM files g"
+            " JOIN files a ON a.size_bytes = g.size_bytes AND a.modified = g.modified"
+            "              AND a.id <> g.id"
+            " WHERE g.missing = 1 AND a.missing = 0"
+            "   AND g.size_bytes > 0 AND g.modified IS NOT NULL"))) {
+        MM_LOG_W() << "could not look for files that moved between scans"
+                   << query.lastError().text();
+        return {};
+    }
+
+    QStringList gone;
+    QStringList present;
+    while (query.next()) {
+        const QString was = query.value(0).toString();
+        const QString now = query.value(1).toString();
+        if (!gone.contains(was)) {
+            gone.append(was);
+        }
+        if (!present.contains(now)) {
+            present.append(now);
+        }
+    }
+    query.finish();
+
+    if (gone.isEmpty()) {
+        return {};
+    }
+    MM_LOG_I() << gone.size() << "missing files have a twin on disk, settling them";
+    return settleMoves(gone, present);
 }
 
 QList<LibraryFile> FileRepository::byHandles(const QStringList &handles) const
@@ -742,6 +826,60 @@ QList<LibraryFile> FileRepository::copiesOfFilm(const QString &handle) const
         bindings);
 }
 
+namespace {
+
+const QString kUpNext = QStringLiteral(
+    "WITH played_ranked AS ("
+    "  SELECT e.media_id AS media_id, e.season AS season, e.episode AS episode,"
+    "         p.last_played AS played, p.file_id AS source, p.watched AS watched,"
+    "         p.position_seconds AS position, p.duration_seconds AS duration,"
+    "         ROW_NUMBER() OVER (PARTITION BY e.media_id"
+    "                            ORDER BY p.last_played DESC, e.season DESC,"
+    "                                     e.episode DESC) AS pick_order"
+    "  FROM episodes e JOIN playback_state p ON p.file_id = e.file_id"
+    "  WHERE p.last_played IS NOT NULL"
+    "), played_last AS ("
+    "  SELECT media_id, season, episode, played, source FROM played_ranked"
+    "  WHERE pick_order = 1"
+    "    AND (watched = 1"
+    "         OR (duration > 0 AND position / duration >= :finished))"
+    "), up_next AS ("
+    "  SELECT l.played AS played, l.source AS source,"
+    "    (SELECT e3.file_id FROM episodes e3"
+    "       JOIN files f3 ON f3.id = e3.file_id"
+    "       LEFT JOIN playback_state p3 ON p3.file_id = e3.file_id"
+    "     WHERE e3.media_id = l.media_id AND f3.missing = 0 AND e3.season > 0"
+    "       AND (e3.season > l.season"
+    "            OR (e3.season = l.season AND e3.episode > l.episode))"
+    "       AND COALESCE(p3.watched, 0) = 0"
+    "       AND NOT (COALESCE(p3.duration_seconds, 0) > 0"
+    "                AND p3.position_seconds / p3.duration_seconds >= :finished)"
+    "     ORDER BY e3.season, e3.episode LIMIT 1) AS file_id"
+    "  FROM played_last l"
+    ") ");
+
+const QString kInProgress = QStringLiteral(
+    " WHERE f.missing = 0"
+    "   AND p.last_played IS NOT NULL"
+    "   AND p.watched = 0"
+    "   AND p.position_seconds > :after"
+    "   AND (p.duration_seconds <= 0"
+    "        OR p.position_seconds / p.duration_seconds < :finished)");
+
+QString continueWatchingRows()
+{
+    const QString joins = kFromClause.mid(kFromClause.indexOf(QLatin1String("files f"))
+                                          + int(qstrlen("files f")));
+    return QStringLiteral("SELECT ") + kSelectColumns
+           + QStringLiteral(", p.last_played AS activity") + kFromClause + kInProgress
+           + QStringLiteral(" UNION ALL SELECT ") + kSelectColumns
+           + QStringLiteral(", n.played AS activity FROM up_next n"
+                            " JOIN files f ON f.id = n.file_id")
+           + joins;
+}
+
+}
+
 QList<LibraryFile> FileRepository::continueWatching(int limit) const
 {
     QVariantMap bindings;
@@ -751,16 +889,23 @@ QList<LibraryFile> FileRepository::continueWatching(int limit) const
     bindings.insert(QStringLiteral(":finished"),
                     PlaybackStateRepository::finishedThresholdFraction());
     return runSelect(m_database,
-        QStringLiteral("SELECT ") + kSelectColumns + kFromClause
-        + QStringLiteral(" WHERE f.missing = 0"
-                         "   AND p.last_played IS NOT NULL"
-                         "   AND p.watched = 0"
-                         "   AND p.position_seconds > :after"
-                         "   AND (p.duration_seconds <= 0"
-                         "        OR p.position_seconds / p.duration_seconds < :finished)"
-                         " ORDER BY p.last_played DESC"
-                         " LIMIT :limit"),
+        kUpNext + QStringLiteral("SELECT * FROM (") + continueWatchingRows()
+        + QStringLiteral(") ORDER BY activity DESC LIMIT :limit"),
         bindings);
+}
+
+qint64 FileRepository::upNextSourceFor(qint64 fileId) const
+{
+    QSqlQuery query(m_database.handle());
+    query.prepare(kUpNext + QStringLiteral(
+        "SELECT source FROM up_next WHERE file_id = :file LIMIT 1"));
+    query.bindValue(QStringLiteral(":finished"),
+                    PlaybackStateRepository::finishedThresholdFraction());
+    query.bindValue(QStringLiteral(":file"), fileId);
+    if (!query.exec() || !query.next()) {
+        return 0;
+    }
+    return query.value(0).toLongLong();
 }
 
 QList<LibraryFile> FileRepository::search(const QString &query, int limit) const
@@ -1136,6 +1281,42 @@ QList<qint64> FileRepository::restoreRemoved(const QStringList &handles)
     return folderIds;
 }
 
+int FileRepository::forgetRemoved(const QStringList &handles)
+{
+    if (handles.isEmpty() || !m_database.transaction()) {
+        return 0;
+    }
+
+    const QStringList statements = {
+        QStringLiteral("DELETE FROM removed_files WHERE file_handle = :handle"),
+        QStringLiteral("DELETE FROM match_overrides WHERE file_handle = :handle"),
+        QStringLiteral("DELETE FROM discarded_shows WHERE file_handle = :handle")
+    };
+
+    int forgotten = 0;
+    for (const QString &handle : handles) {
+        for (const QString &sql : statements) {
+            QSqlQuery query(m_database.handle());
+            query.prepare(sql);
+            query.bindValue(QStringLiteral(":handle"), handle);
+            if (!query.exec()) {
+                MM_LOG_E() << "could not forget" << handle << query.lastError().text();
+                m_database.rollback();
+                return 0;
+            }
+        }
+        ++forgotten;
+    }
+
+    if (!m_database.commit()) {
+        m_database.rollback();
+        return 0;
+    }
+
+    MM_LOG_I() << "forgot" << forgotten << "removed files for good";
+    return forgotten;
+}
+
 bool FileRepository::markProbeAttempted(qint64 id)
 {
     QSqlQuery query(m_database.handle());
@@ -1200,15 +1381,8 @@ int FileRepository::count() const
 int FileRepository::continueWatchingCount() const
 {
     QSqlQuery query(m_database.handle());
-    query.prepare(QStringLiteral(
-        "SELECT COUNT(*) FROM files f"
-        " JOIN playback_state p ON p.file_id = f.id"
-        " WHERE f.missing = 0"
-        "   AND p.last_played IS NOT NULL"
-        "   AND p.watched = 0"
-        "   AND p.position_seconds > :after"
-        "   AND (p.duration_seconds <= 0"
-        "        OR p.position_seconds / p.duration_seconds < :finished)"));
+    query.prepare(kUpNext + QStringLiteral("SELECT COUNT(*) FROM (")
+                  + continueWatchingRows() + QStringLiteral(")"));
     query.bindValue(QStringLiteral(":after"),
                     PlaybackStateRepository::resumeAfterSeconds());
     query.bindValue(QStringLiteral(":finished"),

@@ -676,6 +676,25 @@ Item {
                     root.openFixMatch()
                 }
             }
+
+            Ctrl.SheetRow {
+                readonly property int missing: {
+                    void _showMenu.opened
+                    return Library.missingAmong(root.fileHandles)
+                }
+
+                width: parent.width
+                visible: missing > 0
+                showRadio: false
+                iconSource: S.Icons.close
+                title: qsTr("Remove episodes no longer on disk")
+                subtitle: qsTr("%n episode(s) go to Settings · Removed from library", "", missing)
+
+                onClicked: {
+                    _showMenu.close()
+                    Library.removeMissingFiles(root.fileHandles)
+                }
+            }
         }
     }
 

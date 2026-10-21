@@ -18,10 +18,14 @@ Column {
         onChosen: (value) => AppSettings.skipIntervalSeconds = value
     }
 
-    Ctrl.SectionLabel { text: qsTr("Hold to speed") }
+    Ctrl.SectionLabel {
+        visible: !System.isTelevision
+        text: qsTr("Hold to speed")
+    }
 
     Ctrl.ChipGroup {
         width: parent.width
+        visible: !System.isTelevision
         options: [1.25, 1.5, 2.0, 3.0]
         textFor: (multiplier) => S.Format.speed(multiplier) + "×"
         value: AppSettings.holdToSpeedMultiplier
@@ -39,10 +43,14 @@ Column {
         onSwitchToggled: (checked) => AppSettings.autoPlayNextEpisode = checked
     }
 
-    Ctrl.Divider { width: parent.width }
+    Ctrl.Divider {
+        width: parent.width
+        visible: !System.isTelevision
+    }
 
     Ctrl.SettingsRow {
         width: parent.width
+        visible: !System.isTelevision
         trailing: Ctrl.SettingsRow.Switch
         title: qsTr("Keep screen on")
         subtitle: qsTr("While a video is playing")

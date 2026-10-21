@@ -519,11 +519,32 @@ Item {
             Text {
                 width: parent.width
                 bottomPadding: S.AppTheme.spacing8
-                text: qsTr("These files are still on disk. Put one back and the next scan "
-                           + "adds it to your library again.")
+                text: qsTr("Put a file back and the next scan adds it to your library again. "
+                           + "Files no longer on disk can be removed completely instead, "
+                           + "so nothing of them is kept.")
                 color: S.AppTheme.textSecondary
                 font.pixelSize: S.AppTheme.fs13
                 wrapMode: Text.Wrap
+            }
+
+            Ctrl.ListRow {
+                id: _forgetAllGone
+
+                width: parent.width
+                visible: {
+                    void Library.removedFiles.count
+                    void _removedFiles.opened
+                    return Library.anyRemovedNotOnDisk()
+                }
+                leading: Ctrl.ListRow.Icon
+                iconSource: S.Icons.close
+                title: qsTr("Remove all that are no longer on disk")
+                subtitle: qsTr("Completely, for good")
+                onClicked: {
+                    Library.forgetRemovedNotOnDisk()
+                    if (Library.removedFiles.count === 0)
+                        _removedFiles.close()
+                }
             }
 
             Ctrl.ListRow {
@@ -542,22 +563,81 @@ Item {
             Repeater {
                 model: Library.removedFiles
 
-                delegate: Ctrl.ListRow {
+                delegate: Item {
+                    id: _removedRow
+
                     required property string handle
                     required property string displayName
                     required property string folder
 
-                    width: parent.width
-                    leading: Ctrl.ListRow.Icon
-                    iconSource: S.Icons.noVideo
-                    title: displayName
-                    subtitle: folder
-                    trailingText: qsTr("Put back")
+                    readonly property bool onDisk: {
+                        void _removedFiles.opened
+                        return Library.removedFileOnDisk(handle)
+                    }
 
-                    onClicked: {
-                        Library.restoreRemoved(handle)
+                    function done() {
                         if (Library.removedFiles.count === 0)
                             _removedFiles.close()
+                    }
+
+                    width: parent.width
+                    implicitHeight: Math.max(_removedText.implicitHeight, _removedActions.height)
+                                    + 2 * S.AppTheme.spacing8
+
+                    Column {
+                        id: _removedText
+
+                        anchors.left: parent.left
+                        anchors.right: _removedActions.left
+                        anchors.rightMargin: S.AppTheme.spacing12
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 2
+
+                        Text {
+                            width: parent.width
+                            text: _removedRow.displayName
+                            color: S.AppTheme.textPrimary
+                            font.pixelSize: S.AppTheme.fs14
+                            elide: Text.ElideMiddle
+                        }
+
+                        Text {
+                            width: parent.width
+                            text: _removedRow.onDisk
+                                  ? _removedRow.folder
+                                  : qsTr("No longer on disk  ·  %1").arg(_removedRow.folder)
+                            color: S.AppTheme.textSecondary
+                            font.pixelSize: S.AppTheme.fs12
+                            elide: Text.ElideMiddle
+                        }
+                    }
+
+                    Row {
+                        id: _removedActions
+
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: S.AppTheme.spacing8
+
+                        Ctrl.AppButton {
+                            size: Ctrl.AppButton.Medium
+                            variant: Ctrl.AppButton.Outlined
+                            text: qsTr("Put back")
+                            onClicked: {
+                                Library.restoreRemoved(_removedRow.handle)
+                                _removedRow.done()
+                            }
+                        }
+
+                        Ctrl.AppButton {
+                            size: Ctrl.AppButton.Medium
+                            variant: Ctrl.AppButton.Outlined
+                            text: qsTr("Remove completely")
+                            onClicked: {
+                                Library.forgetRemoved(_removedRow.handle)
+                                _removedRow.done()
+                            }
+                        }
                     }
                 }
             }
@@ -803,9 +883,11 @@ Item {
                 leading: Ctrl.ListRow.Icon
                 iconSource: S.Icons.play
                 title: qsTr("Player")
-                subtitle: qsTr("Skip %1s · hold speed %2×")
-                          .arg(AppSettings.skipIntervalSeconds)
-                          .arg(S.Format.speed(AppSettings.holdToSpeedMultiplier))
+                subtitle: System.isTelevision
+                          ? qsTr("Skip %1s").arg(AppSettings.skipIntervalSeconds)
+                          : qsTr("Skip %1s · hold speed %2×")
+                            .arg(AppSettings.skipIntervalSeconds)
+                            .arg(S.Format.speed(AppSettings.holdToSpeedMultiplier))
                 onClicked: root.page = "player"
             }
 
@@ -835,6 +917,46 @@ Item {
                 subtitle: qsTr("Waits in the notification area, so your devices keep streaming. Right-click the icon to quit")
                 switchChecked: AppSettings.closeToTray
                 onSwitchToggled: (checked) => AppSettings.closeToTray = checked
+            }
+
+            Ctrl.SettingsRow {
+                width: parent.width
+                visible: System.canStartWithWindows
+                height: visible ? implicitHeight : 0
+                iconSource: S.Icons.tray
+                trailing: Ctrl.SettingsRow.Switch
+                title: qsTr("Start with Windows")
+                subtitle: {
+                    switch (System.startWithWindowsState) {
+                    case 2:
+                        return qsTr("Turned off in Windows. Turn Makimedia back on in Task Manager · Startup apps")
+                    case 3:
+                        return qsTr("Turned off by your organisation")
+                    case 4:
+                        return qsTr("Windows did not answer")
+                    default:
+                        return System.supportsTrayIcon
+                               ? qsTr("Opens quietly in the notification area when you sign in")
+                               : qsTr("Opens when you sign in")
+                    }
+                }
+                enabled: System.startWithWindowsState <= 1
+                switchChecked: System.startWithWindowsState === 1
+                onSwitchToggled: (checked) => System.setStartWithWindows(checked)
+
+                Component.onCompleted: System.refreshStartWithWindows()
+            }
+
+            Ctrl.SettingsRow {
+                width: parent.width
+                visible: Streaming.canServe
+                height: visible ? implicitHeight : 0
+                iconSource: S.Icons.tray
+                trailing: Ctrl.SettingsRow.Switch
+                title: qsTr("Start streaming when Makimedia opens")
+                subtitle: qsTr("Once the library has caught up with new files, your devices can play from this PC")
+                switchChecked: AppSettings.streamOnLaunch
+                onSwitchToggled: (checked) => AppSettings.streamOnLaunch = checked
             }
 
             Ctrl.Divider {

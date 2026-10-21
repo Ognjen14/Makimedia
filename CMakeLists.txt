@@ -272,6 +272,7 @@ if(WIN32)
         src/Platform/Windows/WindowsAudioFocus.cpp
         src/Platform/Windows/WindowsTransportControls.cpp
         src/Platform/Windows/WindowsTrayIcon.cpp
+        src/Platform/Windows/WindowsStartup.cpp
 
         makimedia.rc
 
@@ -282,6 +283,7 @@ if(WIN32)
         include/Platform/Windows/WindowsAudioFocus.h
         include/Platform/Windows/WindowsTransportControls.h
         include/Platform/Windows/WindowsTrayIcon.h
+        include/Platform/Windows/WindowsStartup.h
     )
     target_link_libraries(appmakimedia PRIVATE ole32 shell32 windowsapp)
 
@@ -291,6 +293,7 @@ if(WIN32)
     if(MSVC)
         set_source_files_properties(
             src/Platform/Windows/WindowsTransportControls.cpp
+            src/Platform/Windows/WindowsStartup.cpp
             PROPERTIES
                 COMPILE_OPTIONS "/std:c++20"
                 COMPILE_DEFINITIONS "_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS")

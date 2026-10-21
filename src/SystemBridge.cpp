@@ -24,6 +24,7 @@
 #ifdef Q_OS_WIN
 #  include "Platform/Windows/WindowsFileTypes.h"
 #  include "Platform/Windows/WindowsMiniPlayer.h"
+#  include "Platform/Windows/WindowsStartup.h"
 #  include "Platform/Windows/WindowsTrayIcon.h"
 
 #  include <windows.h>
@@ -368,6 +369,68 @@ void SystemBridge::leaveMiniPlayer(QObject *window)
     }
 #else
     Q_UNUSED(window)
+#endif
+}
+
+bool SystemBridge::canStartWithWindows() const
+{
+#ifdef Q_OS_WIN
+    return true;
+#else
+    return false;
+#endif
+}
+
+int SystemBridge::startWithWindowsState() const
+{
+#ifdef Q_OS_WIN
+    if (m_startWithWindows < 0) {
+        const_cast<SystemBridge *>(this)->m_startWithWindows =
+            int(WindowsStartup::state());
+    }
+    return m_startWithWindows;
+#else
+    return int(4);
+#endif
+}
+
+void SystemBridge::setStartWithWindows(bool enabled)
+{
+#ifdef Q_OS_WIN
+    const int now = int(WindowsStartup::setEnabled(enabled));
+    if (now != m_startWithWindows) {
+        m_startWithWindows = now;
+        emit startWithWindowsChanged();
+    }
+#else
+    Q_UNUSED(enabled)
+#endif
+}
+
+void SystemBridge::refreshStartWithWindows()
+{
+#ifdef Q_OS_WIN
+    const int now = int(WindowsStartup::state());
+    if (now != m_startWithWindows) {
+        m_startWithWindows = now;
+        emit startWithWindowsChanged();
+    }
+#endif
+}
+
+bool SystemBridge::launchedAtSignIn() const
+{
+#ifdef Q_OS_WIN
+    if (m_launchedAtSignIn < 0) {
+        const bool atSignIn = WindowsStartup::launchedAtSignIn();
+        const_cast<SystemBridge *>(this)->m_launchedAtSignIn = atSignIn ? 1 : 0;
+        if (atSignIn) {
+            MM_LOG_I() << "started by Windows at sign-in";
+        }
+    }
+    return m_launchedAtSignIn == 1;
+#else
+    return false;
 #endif
 }
 

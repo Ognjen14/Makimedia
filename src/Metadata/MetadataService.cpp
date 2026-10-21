@@ -5,6 +5,7 @@
 #include "MmLog.h"
 #include "Library/CollectionPage.h"
 #include "Metadata/FileNameParser.h"
+#include "TextFold.h"
 #include "Metadata/MatchDecision.h"
 #include "Metadata/MatchScorer.h"
 #include "Metadata/PosterUrlResolver.h"
@@ -1280,6 +1281,8 @@ void MetadataService::matchLibrary()
 
 void MetadataService::matchUnmatched()
 {
+    adoptUnmatchedIntoKnownShows();
+
     if (!available()) {
         return;
     }
@@ -1290,6 +1293,8 @@ void MetadataService::matchUnmatched()
 
 void MetadataService::matchScanned(const QStringList &fileHandles)
 {
+    adoptUnmatchedIntoKnownShows();
+
     if (!available() || fileHandles.isEmpty()) {
         return;
     }
@@ -1410,12 +1415,82 @@ void MetadataService::queueMatches(const QList<LibraryFile> &files, const char *
     }
 }
 
+bool MetadataService::adoptIntoKnownShow(const LibraryFile &file)
+{
+    if (!file.isValid() || file.missing) {
+        return false;
+    }
+
+    const ParsedFileName parsed = file.parentHandle.isEmpty()
+        ? FileNameParser::parse(file.displayName)
+        : FileNameParser::parsePath(file.parentHandle + QLatin1Char('/') + file.displayName);
+    if (!parsed.looksLikeEpisode()) {
+        return false;
+    }
+
+    qint64 mediaId = 0;
+    for (const QString &title : {parsed.title, parsed.titleIfEpisode, parsed.alternativeTitle}) {
+        if (title.isEmpty()) {
+            continue;
+        }
+        mediaId = m_mediaRepository.showWaitingForEpisode(TextFold::key(title),
+                                                          parsed.season, parsed.episode);
+        if (mediaId > 0) {
+            break;
+        }
+    }
+    if (mediaId <= 0) {
+        return false;
+    }
+
+    const FileMediaLink before = m_mediaRepository.linkForFile(file.id);
+    if (!m_mediaRepository.linkFile(file.id, mediaId, 1.0, false)) {
+        return false;
+    }
+    noteRelink(file, before, mediaId, false);
+
+    EpisodeRecord episode;
+    episode.mediaId = mediaId;
+    episode.season = parsed.season;
+    episode.episode = parsed.episode;
+    episode.title = parsed.episodeTitle;
+    m_mediaRepository.upsertEpisode(episode, file.id);
+    m_fileRepository.markMatchAttempted(file.id);
+
+    MM_LOG_I() << "took" << file.displayName << "as season" << parsed.season
+               << "episode" << parsed.episode << "of show" << mediaId
+               << "already in the library, whose copy was not on disk";
+    return true;
+}
+
+void MetadataService::adoptUnmatchedIntoKnownShows()
+{
+    if (m_heldForStreaming) {
+        return;
+    }
+
+    int adopted = 0;
+    const QList<LibraryFile> unmatched = m_fileRepository.unmatched();
+    for (const LibraryFile &file : unmatched) {
+        if (!m_matching.contains(file.id) && adoptIntoKnownShow(file)) {
+            ++adopted;
+        }
+    }
+    if (adopted > 0) {
+        MM_LOG_I() << adopted << "unmatched files filled episodes missing from their shows";
+    }
+}
+
 void MetadataService::drainMatches()
 {
     constexpr int kSlice = 20;
 
     for (int i = 0; i < kSlice && !m_matchQueue.isEmpty(); ++i) {
         const LibraryFile file = m_matchQueue.dequeue();
+        if (adoptIntoKnownShow(m_fileRepository.plainById(file.id))) {
+            m_matching.remove(file.id);
+            continue;
+        }
         const auto parsed = m_setupParsed.constFind(file.id);
         if (parsed != m_setupParsed.constEnd()) {
             runParsedMatch(parsed.value(), file.handle, file.displayName, true, file.id);

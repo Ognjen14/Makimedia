@@ -16,7 +16,11 @@ ApplicationWindow {
 
     readonly property int _normalMinimumWidth: 360
     readonly property int _normalMinimumHeight: 480
-    visible: true
+
+    readonly property bool _startsHidden:
+        System.launchedAtSignIn && System.supportsTrayIcon
+
+    visible: !_startsHidden
     title: qsTr("Makimedia")
 
     color: (System.isTelevision && _stack.depth > 1)
@@ -62,7 +66,7 @@ ApplicationWindow {
     }
 
     function _applyScreenAwake() {
-        const keep = AppSettings.keepScreenOn
+        const keep = (AppSettings.keepScreenOn || System.isTelevision)
                      && MpvPlayer.fileLoaded
                      && !MpvPlayer.paused
         System.setKeepScreenOn(keep)
@@ -399,8 +403,37 @@ ApplicationWindow {
     onHeightChanged: _geometryTimer.restart()
     onVisibilityChanged: _geometryTimer.restart()
 
+    property bool _streamWhenSettled: false
+    property int _settleWaits: 0
+
+    Timer {
+        id: _streamOnLaunch
+
+        interval: 1000
+        repeat: true
+        running: window._streamWhenSettled
+        onTriggered: {
+            window._settleWaits++
+            const busy = Library.scanning || Setup.active || Metadata.pending > 0
+            if (busy && window._settleWaits < 180)
+                return
+
+            window._streamWhenSettled = false
+            if (Streaming.serving)
+                return
+            Library.noteUi(busy ? "starting to stream on launch, the library was still busy after 3 minutes"
+                                : "starting to stream on launch")
+            Streaming.startServing()
+        }
+    }
+
     Component.onCompleted: {
         _restoreGeometry()
+        if (_startsHidden) {
+            Library.noteUi("started at sign-in, waiting in the notification area")
+            System.hideToTray(window)
+        }
+        _streamWhenSettled = AppSettings.streamOnLaunch && Streaming.canServe
         _applySystemBars()
         _applyFontScale()
         _applyTrayStatus()

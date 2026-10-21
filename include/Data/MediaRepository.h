@@ -294,6 +294,7 @@ public:
 
     bool overwriteEpisodeFromTmdb(const EpisodeRecord &record);
     EpisodeRecord episodeForFile(qint64 fileId) const;
+    qint64 showWaitingForEpisode(const QString &titleKey, int season, int episode) const;
     EpisodeRecord nextEpisodeWithFile(qint64 mediaId,
                                       int season,
                                       int episode) const;

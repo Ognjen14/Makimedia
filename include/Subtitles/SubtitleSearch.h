@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QElapsedTimer>
 #include <QList>
 #include <QObject>
 #include <QString>
@@ -75,6 +76,9 @@ private:
     void takePcCandidates(const QJsonObject &answer);
     void fetchFromPc(const Candidate &candidate);
     void stop(const QString &reason);
+    void startSignIn();
+    bool signInAgainFor(QNetworkReply *reply);
+    bool signInIsStale() const;
     void setBusy(bool busy);
     QNetworkReply *post(const QString &path, const QByteArray &body);
     QNetworkReply *get(const QString &url);
@@ -93,6 +97,11 @@ private:
     int m_season = 0;
     int m_episode = 0;
     bool m_searchWhenSignedIn = false;
+
+    bool m_fetchWhenSignedIn = false;
+    Candidate m_fetchAfterSignIn;
+    bool m_signedInAgain = false;
+    QElapsedTimer m_signedInAt;
 
     QList<Candidate> m_candidates;
 };

@@ -129,6 +129,28 @@ Item {
     function openShow(mediaId, title) {
         showMediaId = mediaId
         showTitle = title
+        _showOpenedFromEpisode = ""
+    }
+
+    property string _showOpenedFromEpisode: ""
+
+    function openShowOfEpisode(mediaId, title) {
+        if (showMediaId === mediaId) {
+            closeDetails()
+            return
+        }
+        const episode = detailsHandle
+        openShow(mediaId, title)
+        _showOpenedFromEpisode = episode
+        closeDetails(false)
+    }
+
+    function backFromShow() {
+        const episode = _showOpenedFromEpisode
+        _showOpenedFromEpisode = ""
+        closeShow(episode.length === 0)
+        if (episode.length > 0)
+            openDetails(episode)
     }
 
     function closeShow(restore) {
@@ -567,7 +589,7 @@ Item {
             return true
         }
         if (showMediaId > 0) {
-            closeShow()
+            backFromShow()
             return true
         }
         if (collectionId !== 0) {
@@ -1393,10 +1415,7 @@ Item {
             onPlayRequested: (handle) => root.playTitle(handle, false)
             onPlayFromStartRequested: (handle) => root.playTitle(handle, true)
             onDetailsRequested: (handle) => root.openDetails(handle)
-            onShowRequested: (mediaId) => {
-                root.openShow(mediaId, "")
-                root.closeDetails(false)
-            }
+            onShowRequested: (mediaId) => root.openShowOfEpisode(mediaId, "")
             onDrawerRequested: root.focusDrawer()
 
             Component.onCompleted: {
@@ -1421,6 +1440,7 @@ Item {
                 root.closeDetails()
                 root.openCollection(id)
             }
+            onShowRequested: (mediaId, title) => root.openShowOfEpisode(mediaId, title)
 
             Component.onCompleted: {
                 if (root.remoteNavigation)
@@ -1651,7 +1671,7 @@ Item {
         TV.TvShowScreen {
             mediaId: root.showMediaId
 
-            onBackRequested: root.closeShow()
+            onBackRequested: root.backFromShow()
             onPlayRequested: (handle) => root.playRequested(handle)
             onDetailsRequested: (handle) => root.openDetails(handle)
             onDrawerRequested: root.focusDrawer()
@@ -1669,7 +1689,7 @@ Item {
         TvShowDetailsScreen {
             mediaId: root.showMediaId
 
-            onBackRequested: root.closeShow()
+            onBackRequested: root.backFromShow()
             onPlayRequested: (handle) => root.playRequested(handle)
             onDetailsRequested: (handle) => root.openDetails(handle)
 

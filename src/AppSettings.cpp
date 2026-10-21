@@ -132,6 +132,21 @@ bool AppSettings::closeToTray() const
     return m_settings.value(QStringLiteral("closeToTray"), true).toBool();
 }
 
+bool AppSettings::streamOnLaunch() const
+{
+    return m_settings.value(QStringLiteral("streamOnLaunch"), false).toBool();
+}
+
+void AppSettings::setStreamOnLaunch(bool value)
+{
+    if (streamOnLaunch() == value) {
+        return;
+    }
+    m_settings.setValue(QStringLiteral("streamOnLaunch"), value);
+    MM_LOG_I() << "start streaming when the app opens:" << value;
+    emit streamOnLaunchChanged();
+}
+
 void AppSettings::setCloseToTray(bool value)
 {
     if (closeToTray() == value) {

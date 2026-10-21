@@ -32,9 +32,6 @@ public class MakimediaVideoSurface implements SurfaceHolder.Callback {
     private static int s_videoWidth;
     private static int s_videoHeight;
 
-    // The picture's own resolution. Some decoders do not stretch what they
-    // decode to the surface, so the surface is made exactly this many pixels
-    // and the system does the scaling to the view.
     private static int s_pixelWidth;
     private static int s_pixelHeight;
 

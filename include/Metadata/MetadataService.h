@@ -157,6 +157,8 @@ private:
     void queueMatches(const QList<LibraryFile> &files, const char *what,
                       bool forSetup = false);
     void drainMatches();
+    bool adoptIntoKnownShow(const LibraryFile &file);
+    void adoptUnmatchedIntoKnownShows();
     void runMatch(const QString &fileHandle, const QString &fileName,
                   const QString &folderHandle, bool write, qint64 fileId = 0);
     void runParsedMatch(const ParsedFileName &parsed, const QString &fileHandle,

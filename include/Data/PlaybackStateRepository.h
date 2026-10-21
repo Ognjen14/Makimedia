@@ -17,6 +17,7 @@ public:
     bool setWatched(qint64 fileId, bool watched);
     bool setWatched(const QList<qint64> &fileIds, bool watched);
     bool clear(qint64 fileId);
+    bool forgetFinishedOfShow(qint64 mediaId);
 
     static double finishedThresholdFraction();
     static double resumeAfterSeconds();

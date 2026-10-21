@@ -70,6 +70,7 @@ Item {
     signal playFromStartRequested(string handle)
     signal detailsRequested(string handle)
     signal collectionRequested(var collectionId)
+    signal showRequested(var mediaId, string title)
 
     readonly property bool acceptsFocus: true
 
@@ -581,6 +582,18 @@ Item {
                     width: 1
                     height: S.AppTheme.controlHeightLarge
                     color: S.AppTheme.outline
+                }
+
+                Ctrl.AppButton {
+                    id: _allEpisodes
+
+                    iconOnly: true
+                    visible: root.isEpisode && (root.metadata.mediaId || 0) > 0
+                    text: qsTr("All episodes of %1").arg(root.metadata.title || "")
+                    variant: Ctrl.AppButton.Outlined
+                    iconSource: S.Icons.tvShows
+                    onClicked: root.showRequested(root.metadata.mediaId,
+                                                  root.metadata.title || "")
                 }
 
                 Ctrl.AppButton {

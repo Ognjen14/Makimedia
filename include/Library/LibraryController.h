@@ -255,6 +255,12 @@ public:
     Q_INVOKABLE void hideAllUnmatched();
     Q_INVOKABLE void restoreRemoved(const QString &handle);
     Q_INVOKABLE void restoreAllRemoved();
+    Q_INVOKABLE bool removedFileOnDisk(const QString &handle) const;
+    Q_INVOKABLE int missingAmong(const QStringList &handles) const;
+    Q_INVOKABLE void removeMissingFiles(const QStringList &handles);
+    Q_INVOKABLE bool anyRemovedNotOnDisk() const;
+    Q_INVOKABLE void forgetRemoved(const QString &handle);
+    Q_INVOKABLE int forgetRemovedNotOnDisk();
 
     Q_INVOKABLE void reloadMedia();
 

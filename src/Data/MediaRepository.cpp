@@ -809,6 +809,41 @@ bool MediaRepository::overwriteEpisodeFromTmdb(const EpisodeRecord &record)
     return true;
 }
 
+qint64 MediaRepository::showWaitingForEpisode(const QString &titleKey,
+                                              int season, int episode) const
+{
+    if (titleKey.isEmpty() || episode <= 0) {
+        return 0;
+    }
+
+    QSqlQuery query(m_database.handle());
+    query.prepare(QStringLiteral(
+        "SELECT DISTINCT m.id FROM media m"
+        " JOIN episodes e ON e.media_id = m.id"
+        " LEFT JOIN files f ON f.id = e.file_id"
+        " WHERE m.kind = 'tv' AND m.title_key = :key"
+        "   AND e.season = :season AND e.episode = :episode"
+        "   AND (e.file_id IS NULL OR f.missing = 1)"
+        " LIMIT 2"));
+    query.bindValue(QStringLiteral(":key"), titleKey);
+    query.bindValue(QStringLiteral(":season"), season);
+    query.bindValue(QStringLiteral(":episode"), episode);
+    if (!query.exec()) {
+        MM_LOG_E() << "could not look for a show waiting for an episode"
+                   << query.lastError().text();
+        return 0;
+    }
+
+    qint64 found = 0;
+    while (query.next()) {
+        if (found > 0) {
+            return 0;
+        }
+        found = query.value(0).toLongLong();
+    }
+    return found;
+}
+
 EpisodeRecord MediaRepository::episodeForFile(qint64 fileId) const
 {
     EpisodeRecord record;

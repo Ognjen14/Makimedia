@@ -29,6 +29,7 @@ namespace {
 
 constexpr int kHashChunk = 64 * 1024;
 constexpr qint64 kMaxSubtitleBytes = 4 * 1024 * 1024;
+constexpr qint64 kSignInFreshMs = 12LL * 60 * 60 * 1000;
 constexpr int kPcAnswerTimeoutMs = 60000;
 
 QByteArray apiKey()
@@ -212,7 +213,8 @@ void SubtitleSearch::find(const QString &videoPath, qint64 tmdbId,
         return;
     }
 
-    if (signedIn()) {
+    m_signedInAgain = false;
+    if (signedIn() && !signInIsStale()) {
         setBusy(true);
         runSearch();
     } else {
@@ -346,6 +348,14 @@ void SubtitleSearch::fetchFile(const QString &videoPath, qint64 fileId)
         for (const Candidate &candidate : std::as_const(m_candidates)) {
             if (candidate.fileId == fileId) {
                 setBusy(true);
+                m_signedInAgain = false;
+                if (signInIsStale()) {
+                    m_signedInAgain = true;
+                    m_fetchWhenSignedIn = true;
+                    m_fetchAfterSignIn = candidate;
+                    startSignIn();
+                    return;
+                }
                 requestLink(candidate);
                 return;
             }
@@ -375,6 +385,11 @@ void SubtitleSearch::signIn()
         return;
     }
 
+    startSignIn();
+}
+
+void SubtitleSearch::startSignIn()
+{
     if (!m_token.isEmpty()) {
         m_token.clear();
         emit signedInChanged();
@@ -399,6 +414,7 @@ void SubtitleSearch::signIn()
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
             m_searchWhenSignedIn = false;
+            m_fetchWhenSignedIn = false;
             stop(reasonFor(reply));
             return;
         }
@@ -406,12 +422,14 @@ void SubtitleSearch::signIn()
         const QJsonObject answer =
             QJsonDocument::fromJson(reply->readAll()).object();
         m_token = answer.value(QStringLiteral("token")).toString();
+        m_signedInAt.start();
         const QString base = answer.value(QStringLiteral("base_url")).toString();
         if (!base.isEmpty()) {
             m_host = base;
         }
         if (m_token.isEmpty()) {
             m_searchWhenSignedIn = false;
+            m_fetchWhenSignedIn = false;
             stop(tr("Your opensubtitles account was not accepted."));
             return;
         }
@@ -422,7 +440,10 @@ void SubtitleSearch::signIn()
 
         askQuota();
 
-        if (m_searchWhenSignedIn) {
+        if (m_fetchWhenSignedIn) {
+            m_fetchWhenSignedIn = false;
+            requestLink(m_fetchAfterSignIn);
+        } else if (m_searchWhenSignedIn) {
             m_searchWhenSignedIn = false;
             runSearch();
         } else {
@@ -509,6 +530,10 @@ void SubtitleSearch::runSearch()
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
+            if (signInAgainFor(reply)) {
+                m_searchWhenSignedIn = true;
+                return;
+            }
             stop(reasonFor(reply));
             return;
         }
@@ -584,6 +609,14 @@ void SubtitleSearch::fetch(int index)
         return;
     }
     setBusy(true);
+    m_signedInAgain = false;
+    if (signInIsStale()) {
+        m_signedInAgain = true;
+        m_fetchWhenSignedIn = true;
+        m_fetchAfterSignIn = m_candidates.at(index);
+        startSignIn();
+        return;
+    }
     requestLink(m_candidates.at(index));
 }
 
@@ -602,6 +635,11 @@ void SubtitleSearch::requestLink(const Candidate &candidate)
     connect(reply, &QNetworkReply::finished, this, [this, reply, candidate]() {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
+            if (signInAgainFor(reply)) {
+                m_fetchWhenSignedIn = true;
+                m_fetchAfterSignIn = candidate;
+                return;
+            }
             stop(reasonFor(reply));
             return;
         }
@@ -704,6 +742,29 @@ void SubtitleSearch::store(const QByteArray &bytes, const Candidate &candidate)
 
     setBusy(false);
     emit saved(target, QFileInfo(target).fileName());
+}
+
+bool SubtitleSearch::signInIsStale() const
+{
+    return !signedIn() || !m_signedInAt.isValid()
+           || m_signedInAt.elapsed() > kSignInFreshMs;
+}
+
+bool SubtitleSearch::signInAgainFor(QNetworkReply *reply)
+{
+    const int status =
+        reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    if (status != 401 || m_signedInAgain
+        || m_settings.subtitleAccount().isEmpty()
+        || m_settings.subtitlePassword().isEmpty()) {
+        return false;
+    }
+
+    m_signedInAgain = true;
+    MM_LOG_I() << "opensubtitles no longer accepts the login from earlier,"
+               << "signing in again and trying once more";
+    startSignIn();
+    return true;
 }
 
 void SubtitleSearch::stop(const QString &reason)

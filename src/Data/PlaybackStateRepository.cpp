@@ -360,6 +360,28 @@ bool PlaybackStateRepository::setWatched(const QList<qint64> &fileIds, bool watc
     return true;
 }
 
+bool PlaybackStateRepository::forgetFinishedOfShow(qint64 mediaId)
+{
+    QSqlQuery query(m_database.handle());
+    query.prepare(QStringLiteral(
+        "UPDATE playback_state SET last_played = NULL"
+        " WHERE file_id IN (SELECT file_id FROM episodes"
+        "                   WHERE media_id = :media AND file_id IS NOT NULL)"
+        "   AND (watched = 1"
+        "        OR (duration_seconds > 0"
+        "            AND position_seconds / duration_seconds >= :finished))"));
+    query.bindValue(QStringLiteral(":media"), mediaId);
+    query.bindValue(QStringLiteral(":finished"), finishedThresholdFraction());
+
+    if (!query.exec()) {
+        MM_LOG_E() << "could not take show" << mediaId << "out of continue watching"
+                   << query.lastError().text();
+        return false;
+    }
+    MM_LOG_I() << "show" << mediaId << "no longer offers its next episode";
+    return true;
+}
+
 bool PlaybackStateRepository::clear(qint64 fileId)
 {
     QSqlQuery query(m_database.handle());

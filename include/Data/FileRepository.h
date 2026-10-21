@@ -148,6 +148,7 @@ public:
     QList<LibraryFile> byHandles(const QStringList &handles) const;
     QList<QPair<QString, QString>> settleMoves(const QStringList &missingHandles,
                                                const QStringList &writtenHandles);
+    QList<QPair<QString, QString>> settleStrandedMoves();
 
     enum class MatchScope {
         Unasked,
@@ -166,6 +167,7 @@ public:
     QList<LibraryFile> inFolder(qint64 folderId) const;
     QList<LibraryFile> withParentHandle(const QString &parentHandle) const;
     QList<LibraryFile> continueWatching(int limit) const;
+    qint64 upNextSourceFor(qint64 fileId) const;
     QList<LibraryFile> copiesOfFilm(const QString &handle) const;
     QList<LibraryFile> search(const QString &query, int limit) const;
 
@@ -201,6 +203,7 @@ public:
                                                const QHash<QString, QString> &folderPaths);
     QList<RemovedFileRecord> removedFiles() const;
     QList<qint64> restoreRemoved(const QStringList &handles);
+    int forgetRemoved(const QStringList &handles);
     bool markProbeAttempted(qint64 id);
     bool clearProbeAttempts();
 

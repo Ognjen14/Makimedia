@@ -31,6 +31,9 @@ class SystemBridge : public QObject, public IScreenLock
     Q_PROPERTY(bool canShowInFileManager READ canShowInFileManager CONSTANT FINAL)
     Q_PROPERTY(bool supportsTrayIcon READ supportsTrayIcon CONSTANT FINAL)
     Q_PROPERTY(bool inTray READ inTray NOTIFY inTrayChanged FINAL)
+    Q_PROPERTY(bool canStartWithWindows READ canStartWithWindows CONSTANT FINAL)
+    Q_PROPERTY(int startWithWindowsState READ startWithWindowsState NOTIFY startWithWindowsChanged FINAL)
+    Q_PROPERTY(bool launchedAtSignIn READ launchedAtSignIn CONSTANT FINAL)
     Q_PROPERTY(bool videoPermissionGranted READ hasVideoPermission NOTIFY videoPermissionChanged FINAL)
     Q_PROPERTY(bool videoPermissionBlocked READ videoPermissionBlocked NOTIFY videoPermissionChanged FINAL)
     Q_PROPERTY(bool videoAccessPartial READ videoAccessPartial NOTIFY videoPermissionChanged FINAL)
@@ -120,6 +123,12 @@ public:
 
     QStringList readingDrives() const;
 
+    bool canStartWithWindows() const;
+    int startWithWindowsState() const;
+    Q_INVOKABLE void setStartWithWindows(bool enabled);
+    Q_INVOKABLE void refreshStartWithWindows();
+    bool launchedAtSignIn() const;
+
     qreal keyboardHeight() const;
 
 signals:
@@ -139,6 +148,7 @@ signals:
     void storageIndexChanged(const QString &volumeName);
     void readingDrivesChanged();
     void keyboardHeightChanged();
+    void startWithWindowsChanged();
 
 private slots:
     void onBackInternal();
@@ -160,6 +170,8 @@ private:
 
     WindowsTrayIcon *m_tray = nullptr;
     bool m_inTray = false;
+    int m_startWithWindows = -1;
+    int m_launchedAtSignIn = -1;
 #endif
 
     QSettings m_settings;

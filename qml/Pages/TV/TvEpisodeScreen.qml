@@ -167,6 +167,13 @@ Item {
                     font.pixelSize: S.AppTheme.fs16
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
+
+                    MouseArea {
+                        anchors.fill: parent
+                        enabled: (root.info.mediaId || 0) > 0
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.showRequested(root.info.mediaId)
+                    }
                 }
 
                 Text {

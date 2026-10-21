@@ -144,6 +144,53 @@ Item {
                 }
             }
 
+            Ctrl.Card {
+                width: parent.width
+
+                Item {
+                    width: parent.width
+                    implicitHeight: Math.max(_playText.implicitHeight, _playButton.implicitHeight)
+
+                    Column {
+                        id: _playText
+
+                        anchors.left: parent.left
+                        anchors.right: _playButton.left
+                        anchors.rightMargin: S.AppTheme.spacing24
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: S.AppTheme.spacing4
+
+                        Text {
+                            width: parent.width
+                            text: qsTr("Makimedia for Android")
+                            color: S.AppTheme.textPrimary
+                            font.pixelSize: S.AppTheme.fs15
+                            font.weight: Font.Medium
+                            wrapMode: Text.Wrap
+                        }
+
+                        Text {
+                            width: parent.width
+                            text: qsTr("Install it on your Google TV, tablet or phone from Google Play, then pick this PC in its Streaming settings.")
+                            color: S.AppTheme.textSecondary
+                            font.pixelSize: S.AppTheme.fs13
+                            wrapMode: Text.Wrap
+                        }
+                    }
+
+                    Ctrl.AppButton {
+                        id: _playButton
+
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("Get it on Google Play")
+                        variant: Ctrl.AppButton.Outlined
+                        onClicked: Qt.openUrlExternally(
+                            "https://play.google.com/store/apps/details?id=com.topicdev.makimedia.org")
+                    }
+                }
+            }
+
             Row {
                 width: parent.width
                 visible: Streaming.serving
