@@ -17,4 +17,5 @@ QtObject {
     signal folderUnavailableRequested(string displayName)
     signal errorRequested(string message)
     signal playbackFailureRequested(string reason)
+    signal reviewPromptRequested()
 }

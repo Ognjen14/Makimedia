@@ -1814,6 +1814,15 @@ Item {
                 onClicked: S.DevTools.errorRequested(
                                qsTr("That folder could not be saved."))
             }
+
+            Ctrl.Divider { width: parent.width }
+
+            Ctrl.ListRow {
+                width: parent.width
+                title: qsTr("Show review prompt")
+                subtitle: qsTr("Rate and No thanks stop it for good, as they would for anyone")
+                onClicked: S.DevTools.reviewPromptRequested()
+            }
         }
     }
 

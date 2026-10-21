@@ -627,6 +627,14 @@ ApplicationWindow {
         }
     }
 
+    Connections {
+        target: S.DevTools
+
+        function onReviewPromptRequested() {
+            _reviewDialog.open()
+        }
+    }
+
     Timer {
         id: _updateCheck
 
