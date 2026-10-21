@@ -46,6 +46,8 @@ struct LibraryFile
     int season = 0;
     int episode = 0;
 
+    bool upNext = false;
+
     bool isMatched() const { return !matchedTitle.isEmpty(); }
     bool isEpisode() const { return episode > 0; }
     bool isValid() const { return id >= 0; }
@@ -78,6 +80,7 @@ struct LibraryFile
             && matchedKind == other.matchedKind
             && matchedYear == other.matchedYear
             && matchSuggested == other.matchSuggested
+            && upNext == other.upNext
             && episodeTitle == other.episodeTitle
             && season == other.season
             && episode == other.episode;

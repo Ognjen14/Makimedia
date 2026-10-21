@@ -98,6 +98,20 @@ void AppSettings::setHoldToSpeedMultiplier(double multiplier)
     emit holdToSpeedMultiplierChanged();
 }
 
+bool AppSettings::dimWatched() const
+{
+    return m_settings.value(QStringLiteral("dimWatched"), true).toBool();
+}
+
+void AppSettings::setDimWatched(bool value)
+{
+    if (dimWatched() == value) {
+        return;
+    }
+    m_settings.setValue(QStringLiteral("dimWatched"), value);
+    emit dimWatchedChanged();
+}
+
 bool AppSettings::keepScreenOn() const
 {
     return m_settings.value(QStringLiteral("keepScreenOn"), true).toBool();

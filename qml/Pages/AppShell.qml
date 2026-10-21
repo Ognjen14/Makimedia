@@ -1325,6 +1325,29 @@ Item {
             Ctrl.SheetRow {
                 width: parent.width
                 showRadio: false
+                iconSource: S.Icons.movies
+                title: qsTr("Details")
+                onClicked: {
+                    _itemMenu.close()
+                    root.openDetails(root.menuHandle)
+                }
+            }
+
+            Ctrl.SheetRow {
+                width: parent.width
+                showRadio: false
+                visible: root.menuInfo.isEpisode === true && (root.menuInfo.mediaId || 0) > 0
+                iconSource: S.Icons.tvShows
+                title: qsTr("Go to show")
+                onClicked: {
+                    _itemMenu.close()
+                    root.openShow(root.menuInfo.mediaId, root.menuInfo.matchedTitle || "")
+                }
+            }
+
+            Ctrl.SheetRow {
+                width: parent.width
+                showRadio: false
                 iconSource: S.Icons.check
                 title: root.menuInfo.watched === true
                        ? qsTr("Mark as unwatched")
@@ -1502,6 +1525,7 @@ Item {
         HomeScreen {
             onDetailsRequested: (handle) => root.openDetails(handle)
             onPlayRequested: (handle) => root.playTitle(handle, false)
+            onMenuRequested: (handle, name) => root.openItemMenu(handle, name)
             onShowRequested: (mediaId, title) => root.openShow(mediaId, title)
             onDrawerRequested: root.focusDrawer()
         }
@@ -1532,7 +1556,6 @@ Item {
         MediaGridScreen {
             model: Library.movieGrid
             toolbar: true
-            seenAsCheck: true
             titleText: root.pageOwnsTitle ? qsTr("Movies") : ""
             showsSearch: root.pageOwnsTitle && !System.isTelevision && !Streaming.serving
 
@@ -1566,7 +1589,6 @@ Item {
         MediaGridScreen {
             model: Library.showGrid
             toolbar: true
-            seenAsCheck: true
             titleText: root.pageOwnsTitle ? qsTr("TV shows") : ""
             showsSearch: root.pageOwnsTitle && !System.isTelevision && !Streaming.serving
 

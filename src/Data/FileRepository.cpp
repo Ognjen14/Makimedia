@@ -77,6 +77,7 @@ struct FileColumns
         episodeNumber = record.indexOf(QStringLiteral("episode_number"));
         episodeTitle = record.indexOf(QStringLiteral("episode_title"));
         episodeStill = record.indexOf(QStringLiteral("episode_still"));
+        upNext = record.indexOf(QStringLiteral("up_next"));
     }
 
     int id, folderId, handle, parentHandle, displayName, sizeBytes, modified;
@@ -86,6 +87,7 @@ struct FileColumns
     int matchedTitle, matchedYear, matchedPoster, matchedBackdrop;
     int matchSuggested, matchedKind;
     int episodeSeason, episodeNumber, episodeTitle, episodeStill;
+    int upNext;
 };
 
 LibraryFile fileFromQuery(const QSqlQuery &query, const FileColumns &at)
@@ -136,6 +138,7 @@ LibraryFile fileFromQuery(const QSqlQuery &query, const FileColumns &at)
     file.episode = query.value(at.episodeNumber).toInt();
     file.episodeTitle = query.value(at.episodeTitle).toString();
     file.episodeStillPath = query.value(at.episodeStill).toString();
+    file.upNext = at.upNext >= 0 && query.value(at.upNext).toInt() != 0;
 
     return file;
 }
@@ -837,7 +840,7 @@ const QString kUpNext = QStringLiteral(
     "                            ORDER BY p.last_played DESC, e.season DESC,"
     "                                     e.episode DESC) AS pick_order"
     "  FROM episodes e JOIN playback_state p ON p.file_id = e.file_id"
-    "  WHERE p.last_played IS NOT NULL"
+    "  WHERE p.last_played > 1"
     "), played_last AS ("
     "  SELECT media_id, season, episode, played, source FROM played_ranked"
     "  WHERE pick_order = 1"
@@ -860,7 +863,7 @@ const QString kUpNext = QStringLiteral(
 
 const QString kInProgress = QStringLiteral(
     " WHERE f.missing = 0"
-    "   AND p.last_played IS NOT NULL"
+    "   AND p.last_played > 1"
     "   AND p.watched = 0"
     "   AND p.position_seconds > :after"
     "   AND (p.duration_seconds <= 0"
@@ -870,12 +873,20 @@ QString continueWatchingRows()
 {
     const QString joins = kFromClause.mid(kFromClause.indexOf(QLatin1String("files f"))
                                           + int(qstrlen("files f")));
-    return QStringLiteral("SELECT ") + kSelectColumns
-           + QStringLiteral(", p.last_played AS activity") + kFromClause + kInProgress
-           + QStringLiteral(" UNION ALL SELECT ") + kSelectColumns
-           + QStringLiteral(", n.played AS activity FROM up_next n"
-                            " JOIN files f ON f.id = n.file_id")
-           + joins;
+    const QString rows =
+        QStringLiteral("SELECT ") + kSelectColumns
+        + QStringLiteral(", p.last_played AS activity, 0 AS up_next,"
+                         " fm.media_id AS cw_media") + kFromClause + kInProgress
+        + QStringLiteral(" UNION ALL SELECT ") + kSelectColumns
+        + QStringLiteral(", n.played AS activity, 1 AS up_next, fm.media_id AS cw_media"
+                         " FROM up_next n JOIN files f ON f.id = n.file_id")
+        + joins;
+    return QStringLiteral(
+               "SELECT * FROM (SELECT *, ROW_NUMBER() OVER ("
+               " PARTITION BY CASE WHEN episode_season IS NOT NULL AND cw_media IS NOT NULL"
+               "                   THEN 'm' || cw_media ELSE 'f' || id END"
+               " ORDER BY activity DESC) AS cw_rank FROM (")
+           + rows + QStringLiteral(")) WHERE cw_rank = 1");
 }
 
 }

@@ -185,12 +185,9 @@ Item {
                     return _cell.matchedYear > 0 ? String(_cell.matchedYear) : ""
                 }
                 progress: _cell.watchProgress
-                badge: _cell.missing
-                       ? Ctrl.MediaTile.Negative
-                       : (_cell.watched ? Ctrl.MediaTile.Positive : Ctrl.MediaTile.None)
-                badgeText: _cell.missing
-                           ? qsTr("Missing")
-                           : (_cell.watched ? qsTr("Seen") : "")
+                badge: _cell.missing ? Ctrl.MediaTile.Negative : Ctrl.MediaTile.None
+                badgeText: _cell.missing ? qsTr("Missing") : ""
+                watched: _cell.watched
 
                 onClicked: _cell.activate()
             }

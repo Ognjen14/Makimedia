@@ -31,4 +31,15 @@ Column {
         visible: !System.isTelevision
         height: visible ? implicitHeight : 0
     }
+
+    Ctrl.SectionLabel { text: qsTr("Library") }
+
+    Ctrl.SettingsRow {
+        width: parent.width
+        trailing: Ctrl.SettingsRow.Switch
+        title: qsTr("Dim what you have seen")
+        subtitle: qsTr("Watched films and finished shows are shown darker, so new ones stand out")
+        switchChecked: AppSettings.dimWatched
+        onSwitchToggled: (checked) => AppSettings.dimWatched = checked
+    }
 }

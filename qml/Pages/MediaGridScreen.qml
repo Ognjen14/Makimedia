@@ -41,7 +41,6 @@ Item {
     property string countText: ""
     property int sortValue: 0
     property int filterValue: 0
-    property bool seenAsCheck: false
 
     readonly property var sortOptions: [
         qsTr("Title A-Z"),
@@ -345,11 +344,7 @@ Item {
                 title: _cell.title
                 meta: _cell.summary
                 progress: _cell.watchProgress
-                badge: _cell.watched ? Ctrl.MediaTile.Positive : Ctrl.MediaTile.None
-                badgeText: _cell.watched && !root.seenAsCheck ? qsTr("Seen") : ""
-                badgeIcon: _cell.watched && root.seenAsCheck ? S.Icons.check : ""
-                badgeIconBackground: "white"
-                badgeIconForeground: "black"
+                watched: _cell.watched
 
                 onClicked: _cell.activate()
             }

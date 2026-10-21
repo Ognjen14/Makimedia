@@ -105,6 +105,18 @@ QVariant FileListModel::data(const QModelIndex &index, int role) const
         return file.episodeStillPath;
     case TitleTextRole:
         return titleTextFor(file);
+    case UpNextRole:
+        return file.upNext;
+    case MinutesLeftRole: {
+        if (file.upNext || file.playback.watched) {
+            return 0;
+        }
+        const double total = file.durationSeconds > 0.0
+            ? file.durationSeconds
+            : file.playback.durationSeconds;
+        const double left = total - file.playback.positionSeconds;
+        return left > 0.0 ? int((left + 59.0) / 60.0) : 0;
+    }
     case ArtworkStampRole:
         return m_artworkEverything
             + m_artworkStamps.value(file.matchedPosterPath)
@@ -153,7 +165,9 @@ QHash<int, QByteArray> FileListModel::roleNames() const
         {EpisodeTitleRole, "episodeTitle"},
         {EpisodeLabelRole, "episodeLabel"},
         {TitleTextRole, "titleText"},
-        {ArtworkStampRole, "artworkStamp"}
+        {ArtworkStampRole, "artworkStamp"},
+        {UpNextRole, "upNext"},
+        {MinutesLeftRole, "minutesLeft"}
     };
 }
 

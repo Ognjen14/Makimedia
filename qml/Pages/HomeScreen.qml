@@ -12,6 +12,18 @@ Item {
 
     signal detailsRequested(string handle)
     signal playRequested(string handle)
+    signal menuRequested(string handle, string name)
+
+    function timeLeftText(minutes) {
+        if (minutes <= 0)
+            return ""
+        if (minutes < 60)
+            return qsTr("%1 min left").arg(minutes)
+        const hours = Math.floor(minutes / 60)
+        const rest = minutes % 60
+        return rest > 0 ? qsTr("%1 h %2 min left").arg(hours).arg(rest)
+                        : qsTr("%1 h left").arg(hours)
+    }
     signal drawerRequested()
 
     readonly property bool acceptsFocus: hasAnything || Streaming.offerVisible
@@ -152,6 +164,7 @@ Item {
     readonly property real wideRowHeight:
         S.AppTheme.wideTileWidth * S.AppTheme.backdropAspectRatio
         + S.AppTheme.tileLabelHeight + S.AppTheme.focusHeadroom
+    readonly property real continueRowHeight: wideRowHeight + S.AppTheme.fs11 + 6
     readonly property real posterRowHeight:
         homePosterWidth * S.AppTheme.posterAspectRatio
         + S.AppTheme.tileLabelHeight + S.AppTheme.focusHeadroom
@@ -343,7 +356,7 @@ Item {
                 id: _continueRow
 
                 width: parent.width
-                height: visible ? root.wideRowHeight : 0
+                height: visible ? root.continueRowHeight : 0
                 visible: Library.continueFiles.count > 0
                 spacing: S.AppTheme.spacing12
                 model: Library.continueFiles
@@ -378,6 +391,12 @@ Item {
                     required property string stillPath
                     required property bool isUnmatched
                     required property string episodeLabel
+                    required property int season
+                    required property int episode
+                    required property string episodeTitle
+                    required property int matchedYear
+                    required property bool upNext
+                    required property int minutesLeft
 
                     readonly property var art: {
                         void artworkStamp
@@ -406,23 +425,43 @@ Item {
                     artPortrait: art.portrait
                     title: titleText
                     meta: {
-                        const bits = []
-                        if (episodeLabel.length > 0)
-                            bits.push(episodeLabel)
-                        if (remainingText.length > 0)
-                            bits.push(qsTr("%1 left").arg(remainingText))
-                        else if (isUnmatched)
-                            bits.push(qsTr("Unmatched"))
-                        return bits.join("  ·  ")
+                        if (episode > 0) {
+                            const code = season > 0
+                                ? qsTr("S%1 · E%2").arg(season).arg(episode)
+                                : qsTr("Special %1").arg(episode)
+                            return episodeTitle.length > 0 ? code + "  ·  " + episodeTitle : code
+                        }
+                        if (isUnmatched)
+                            return qsTr("Unmatched")
+                        return matchedYear > 0 ? String(matchedYear) : ""
                     }
+                    detail: {
+                        const status = upNext ? qsTr("Next episode")
+                                              : root.timeLeftText(minutesLeft)
+                        if (!S.AppTheme.remoteNavigation || !highlighted)
+                            return status
+                        const hint = qsTr("Hold OK for details")
+                        return status.length > 0 ? status + "  ·  " + hint : hint
+                    }
+                    detailAccent: upNext
+                    badge: upNext ? Ctrl.MediaTile.Accent : Ctrl.MediaTile.None
+                    badgeText: upNext ? qsTr("NEXT") : ""
+                    playHint: true
+                    holdable: true
                     progress: watchProgress
                     highlighted: ListView.isCurrentItem && _continueRow.activeFocus
 
                     function activate() {
-                        root.detailsRequested(handle)
+                        root.playRequested(handle)
+                    }
+
+                    function openMenu() {
+                        root.menuRequested(handle, titleText)
                     }
 
                     onClicked: activate()
+                    onContextRequested: openMenu()
+                    onHeld: openMenu()
                 }
             }
 
@@ -661,9 +700,7 @@ Item {
                                 title: _title.title
                                 meta: _title.summary
                                 progress: _title.watchProgress
-                                badge: _title.watched ? Ctrl.MediaTile.Positive
-                                                      : Ctrl.MediaTile.None
-                                badgeText: _title.watched ? qsTr("Seen") : ""
+                                watched: _title.watched
                                 highlighted: _title.ListView.isCurrentItem
                                              && _genreList.activeFocus
 

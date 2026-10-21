@@ -43,7 +43,9 @@ public:
         EpisodeTitleRole,
         EpisodeLabelRole,
         TitleTextRole,
-        ArtworkStampRole
+        ArtworkStampRole,
+        UpNextRole,
+        MinutesLeftRole
     };
 
     explicit FileListModel(QObject *parent = nullptr);

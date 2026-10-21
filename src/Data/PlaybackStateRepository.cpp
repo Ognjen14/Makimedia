@@ -360,18 +360,15 @@ bool PlaybackStateRepository::setWatched(const QList<qint64> &fileIds, bool watc
     return true;
 }
 
-bool PlaybackStateRepository::forgetFinishedOfShow(qint64 mediaId)
+bool PlaybackStateRepository::dismissShow(qint64 mediaId)
 {
     QSqlQuery query(m_database.handle());
     query.prepare(QStringLiteral(
-        "UPDATE playback_state SET last_played = NULL"
+        "UPDATE playback_state SET last_played = 1"
         " WHERE file_id IN (SELECT file_id FROM episodes"
         "                   WHERE media_id = :media AND file_id IS NOT NULL)"
-        "   AND (watched = 1"
-        "        OR (duration_seconds > 0"
-        "            AND position_seconds / duration_seconds >= :finished))"));
+        "   AND last_played > 1"));
     query.bindValue(QStringLiteral(":media"), mediaId);
-    query.bindValue(QStringLiteral(":finished"), finishedThresholdFraction());
 
     if (!query.exec()) {
         MM_LOG_E() << "could not take show" << mediaId << "out of continue watching"

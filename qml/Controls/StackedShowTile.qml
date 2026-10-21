@@ -57,10 +57,9 @@ Item {
         meta: root.meta
         progress: root.progress
         highlighted: root.highlighted
-        badge: root.newCount > 0 ? MediaTile.Accent
-                                 : (root.watched ? MediaTile.Positive : MediaTile.None)
-        badgeText: root.newCount > 0 ? qsTr("%n new", "", root.newCount)
-                                     : (root.watched ? qsTr("Seen") : "")
+        badge: root.newCount > 0 ? MediaTile.Accent : MediaTile.None
+        badgeText: root.newCount > 0 ? qsTr("%n new", "", root.newCount) : ""
+        watched: root.watched && root.newCount === 0
 
         onClicked: root.clicked()
         onContextRequested: root.contextRequested()

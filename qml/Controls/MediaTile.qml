@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Window
 import "../Singletons"
+import com.topicdev.makimedia 1.0
 
 RemoteButton {
     id: root
@@ -26,6 +27,9 @@ RemoteButton {
     property bool artPortrait: false
     property string title
     property string meta
+    property string detail
+    property bool detailAccent: false
+    property bool playHint: false
     property string badgeText
     property url badgeIcon
     property color badgeIconBackground: badgeBackground
@@ -33,6 +37,10 @@ RemoteButton {
     property int badge: MediaTile.None
 
     readonly property bool hasBadgeIcon: badgeIcon.toString().length > 0
+    property bool watched: false
+    readonly property bool showsWatchedCheck:
+        watched && badgeText.length === 0 && !hasBadgeIcon
+    readonly property bool badgeIsIcon: hasBadgeIcon || showsWatchedCheck
     property real progress: 0
     property bool unmatched: false
     property string placeholderText
@@ -97,6 +105,7 @@ RemoteButton {
                     + _art.height + AppTheme.spacing8
                     + _title.implicitHeight
                     + (meta.length > 0 ? 2 + _meta.implicitHeight : 0)
+                    + (detail.length > 0 ? 2 + _detail.implicitHeight : 0)
 
     Accessible.role: Accessible.Button
     Accessible.name: title
@@ -152,6 +161,17 @@ RemoteButton {
                     }
                 }
 
+                Rectangle {
+                    anchors.fill: parent
+                    radius: _artSurface.radius
+                    color: "black"
+                    opacity: root.watched && AppSettings.dimWatched && !root.focused ? 0.4 : 0
+
+                    Behavior on opacity {
+                        NumberAnimation { duration: 110 }
+                    }
+                }
+
                 ThemedIcon {
                     anchors.centerIn: parent
                     width: root.shape === MediaTile.Wide ? 30 : 26
@@ -186,7 +206,7 @@ RemoteButton {
                     anchors.rightMargin: AppTheme.spacing6
                     anchors.bottomMargin: AppTheme.spacing6
                     height: AppTheme.seekBarHeight
-                    visible: root.progress > 0
+                    visible: root.progress > 0 && !root.watched
                     radius: AppTheme.radiusPill
                     color: Qt.rgba(0, 0, 0, 0.55)
 
@@ -245,18 +265,20 @@ RemoteButton {
                 anchors.top: parent.top
                 anchors.right: parent.right
                 anchors.margins: AppTheme.spacing6
-                visible: root.badge !== MediaTile.None
-                         && (root.hasBadgeIcon || root.badgeText.length > 0)
-                width: root.hasBadgeIcon ? 22 : _badgeLabel.implicitWidth + 14
-                height: root.hasBadgeIcon ? 22 : _badgeLabel.implicitHeight + 4
+                visible: (root.badge !== MediaTile.None
+                          && (root.hasBadgeIcon || root.badgeText.length > 0))
+                         || root.showsWatchedCheck
+                width: root.badgeIsIcon ? 22 : _badgeLabel.implicitWidth + 14
+                height: root.badgeIsIcon ? 22 : _badgeLabel.implicitHeight + 4
                 radius: AppTheme.radiusPill
-                color: root.hasBadgeIcon ? root.badgeIconBackground : root.badgeBackground
+                color: root.hasBadgeIcon ? root.badgeIconBackground
+                                         : (root.showsWatchedCheck ? "white" : root.badgeBackground)
 
                 Text {
                     id: _badgeLabel
 
                     anchors.centerIn: parent
-                    visible: !root.hasBadgeIcon
+                    visible: !root.badgeIsIcon
                     text: root.badgeText
                     color: root.badgeForeground
                     font.pixelSize: AppTheme.fs9
@@ -267,9 +289,27 @@ RemoteButton {
                     anchors.centerIn: parent
                     width: 14
                     height: 14
-                    visible: root.hasBadgeIcon
-                    source: root.badgeIcon
-                    tintColor: root.badgeIconForeground
+                    visible: root.badgeIsIcon
+                    source: root.hasBadgeIcon ? root.badgeIcon : Icons.check
+                    tintColor: root.hasBadgeIcon ? root.badgeIconForeground : "black"
+                    showPlaceholder: false
+                }
+            }
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: 44
+                height: 44
+                radius: width / 2
+                visible: root.playHint && root.focused
+                color: Qt.rgba(0, 0, 0, 0.55)
+
+                ThemedIcon {
+                    anchors.centerIn: parent
+                    width: 22
+                    height: 22
+                    source: Icons.play
+                    tintColor: "#FFFFFF"
                     showPlaceholder: false
                 }
             }
@@ -311,6 +351,22 @@ RemoteButton {
             text: root.meta
             color: AppTheme.textSecondary
             font.pixelSize: AppTheme.fs11
+            elide: Text.ElideRight
+            maximumLineCount: 1
+        }
+
+        Text {
+            id: _detail
+
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: _meta.visible ? _meta.bottom : _title.bottom
+            anchors.topMargin: 2
+            visible: root.detail.length > 0
+            text: root.detail
+            color: root.detailAccent ? AppTheme.primary : AppTheme.textSecondary
+            font.pixelSize: AppTheme.fs11
+            font.weight: root.detailAccent ? Font.DemiBold : Font.Normal
             elide: Text.ElideRight
             maximumLineCount: 1
         }
