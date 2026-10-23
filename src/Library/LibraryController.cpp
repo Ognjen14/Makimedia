@@ -3794,12 +3794,10 @@ void LibraryController::setAllWatched(const QStringList &fileHandles, bool watch
 void LibraryController::removeFromContinueWatching(qint64 fileId)
 {
     MM_LOG_I() << "file" << fileId << "removed from continue watching";
-    const LibraryFile file = m_fileRepository.byId(fileId);
     const EpisodeRecord episode = m_mediaRepository.episodeForFile(fileId);
+    m_playbackRepository.clear(fileId);
     if (episode.mediaId > 0) {
         m_playbackRepository.dismissShow(episode.mediaId);
-    } else {
-        m_playbackRepository.clear(fileId);
     }
     refreshPlayedFiles({fileId});
     emit fileCountChanged();

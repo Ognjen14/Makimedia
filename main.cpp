@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
 
     app.setOrganizationName(QStringLiteral("TopicDev"));
     app.setApplicationName(QStringLiteral("Makimedia"));
-    app.setApplicationVersion(QStringLiteral("1.0.5"));
+    app.setApplicationVersion(QStringLiteral("1.0.6"));
 
 #ifdef Q_OS_WIN
     app.setQuitOnLastWindowClosed(false);
