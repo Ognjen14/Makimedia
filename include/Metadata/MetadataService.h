@@ -226,6 +226,7 @@ private:
     void settleSetupCollectionWork(const QString &key, bool fetched);
     void finishSetupCollections();
     void finish(const QVariantMap &result);
+    void settleSetupFile(qint64 fileId, bool unreachable);
     void applyResult(qint64 fileId,
                      const QString &fileHandle,
                      const ParsedFileName &parsed,

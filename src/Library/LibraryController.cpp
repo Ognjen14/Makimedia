@@ -3099,7 +3099,7 @@ void LibraryController::removeFromLibrary(const QString &handle)
         MM_LOG_I() << "taking a missing file out of the library:" << file.displayName;
     }
 
-    takeOutOfLibrary({ file });
+    takeOutOfLibrary({ file }, !gone);
 }
 
 int LibraryController::hideableUnmatchedCount()
@@ -3147,7 +3147,7 @@ void LibraryController::hideAllUnmatched()
     takeOutOfLibrary(hidden);
 }
 
-void LibraryController::takeOutOfLibrary(const QList<LibraryFile> &files)
+void LibraryController::takeOutOfLibrary(const QList<LibraryFile> &files, bool remember)
 {
     if (files.isEmpty()) {
         return;
@@ -3171,7 +3171,7 @@ void LibraryController::takeOutOfLibrary(const QList<LibraryFile> &files)
     }
 
     const QList<RemovedFileRecord> removed =
-        m_fileRepository.removeFromLibrary(files, folderPaths);
+        m_fileRepository.removeFromLibrary(files, folderPaths, remember);
     if (removed.isEmpty()) {
         emit errorRaised(tr("Those files could not be taken out of the library."));
         return;
@@ -3186,26 +3186,89 @@ void LibraryController::takeOutOfLibrary(const QList<LibraryFile> &files)
         m_searchModel->removeFile(record.handle);
         m_searchEpisodeModel->removeFile(record.handle);
         if (m_scanIndexLoaded && record.folderId == m_scanFolderId) {
-            ScanIndexRow row;
-            row.removed = true;
-            m_scanIndex.insert(record.handle, row);
+            if (remember) {
+                ScanIndexRow row;
+                row.removed = true;
+                m_scanIndex.insert(record.handle, row);
+            } else {
+                m_scanIndex.remove(record.handle);
+            }
         }
     }
 
     m_unmatchedShows->removeFiles(handles);
-    m_removedFiles->prependFiles(removed);
+    if (remember) {
+        m_removedFiles->prependFiles(removed);
+    }
     placeTitles(titles);
     recountFiles();
 }
 
-void LibraryController::restoreRemoved(const QString &handle)
+QVariantList LibraryController::removedTitles() const
 {
-    if (refusesWhileHeld("putting a file back")) {
-        return;
+    QVariantList titles;
+    QHash<QString, int> rowsByKey;
+
+    for (const RemovedFileRecord &file : m_removedFiles->files()) {
+        const QString key = QStringLiteral("%1|%2").arg(file.removedAt).arg(file.folder);
+        const bool onDisk = removedFileOnDisk(file.handle);
+
+        const int row = rowsByKey.value(key, -1);
+        if (row < 0) {
+            QVariantMap title;
+            title.insert(QStringLiteral("key"), key);
+            title.insert(QStringLiteral("title"), file.displayName);
+            title.insert(QStringLiteral("folder"), file.folder);
+            title.insert(QStringLiteral("handles"), QStringList{ file.handle });
+            title.insert(QStringLiteral("onDiskCount"), onDisk ? 1 : 0);
+            rowsByKey.insert(key, int(titles.size()));
+            titles.append(title);
+            continue;
+        }
+
+        QVariantMap title = titles.at(row).toMap();
+        QStringList handles = title.value(QStringLiteral("handles")).toStringList();
+        handles.append(file.handle);
+        title.insert(QStringLiteral("handles"), handles);
+        if (handles.size() == 2) {
+            const QString folder = QDir::fromNativeSeparators(file.folder);
+            const QString name = folder.section(QLatin1Char('/'), -1, -1,
+                                                QString::SectionSkipEmpty);
+            if (!name.isEmpty()) {
+                title.insert(QStringLiteral("title"), name);
+            }
+        }
+        if (onDisk) {
+            title.insert(QStringLiteral("onDiskCount"),
+                         title.value(QStringLiteral("onDiskCount")).toInt() + 1);
+        }
+        titles[row] = title;
     }
-    const QList<qint64> folderIds = m_fileRepository.restoreRemoved({ handle });
-    m_removedFiles->removeHandles({ handle });
+    return titles;
+}
+
+int LibraryController::restoreRemoved(const QStringList &handles)
+{
+    if (refusesWhileHeld("putting files back")) {
+        return 0;
+    }
+
+    QStringList present;
+    for (const QString &handle : handles) {
+        if (removedFileOnDisk(handle)) {
+            present.append(handle);
+        }
+    }
+    if (present.isEmpty()) {
+        MM_LOG_W() << "none of those" << handles.size()
+                   << "removed files are on disk, nothing to put back";
+        return 0;
+    }
+
+    const QList<qint64> folderIds = m_fileRepository.restoreRemoved(present);
+    m_removedFiles->removeHandles(present);
     rescanFoldersQuiet(folderIds);
+    return int(present.size());
 }
 
 bool LibraryController::removedFileOnDisk(const QString &handle) const
@@ -3214,35 +3277,37 @@ bool LibraryController::removedFileOnDisk(const QString &handle) const
     return source && source->exists(handle);
 }
 
-int LibraryController::missingAmong(const QStringList &handles) const
+bool LibraryController::allGone(const QStringList &handles) const
 {
-    int missing = 0;
-    for (const LibraryFile &file : m_fileRepository.byHandles(handles)) {
-        if (file.missing) {
-            ++missing;
+    const QList<LibraryFile> files = m_fileRepository.byHandles(handles);
+    if (files.isEmpty()) {
+        return false;
+    }
+
+    IMediaSource *source = m_platform.mediaSource();
+    for (const LibraryFile &file : files) {
+        if (!file.missing && source && source->exists(file.handle)) {
+            return false;
         }
     }
-    return missing;
+    return true;
 }
 
-void LibraryController::removeMissingFiles(const QStringList &handles)
+bool LibraryController::removeShowFromLibrary(const QStringList &handles)
 {
-    if (refusesWhileHeld("removing missing files")) {
-        return;
+    if (refusesWhileHeld("removing a show")) {
+        return false;
+    }
+    if (!allGone(handles)) {
+        MM_LOG_W() << "a show with episodes still on disk stays in the library";
+        return false;
     }
 
-    QList<LibraryFile> missing;
-    for (const LibraryFile &file : m_fileRepository.byHandles(handles)) {
-        if (file.missing) {
-            missing.append(file);
-        }
-    }
-    if (missing.isEmpty()) {
-        return;
-    }
-
-    MM_LOG_I() << "taking" << missing.size() << "files no longer on disk out of the library";
-    takeOutOfLibrary(missing);
+    const QList<LibraryFile> files = m_fileRepository.byHandles(handles);
+    MM_LOG_I() << "taking a show out of the library, none of its"
+               << files.size() << "files are on disk";
+    takeOutOfLibrary(files, false);
+    return true;
 }
 
 bool LibraryController::anyRemovedNotOnDisk() const
@@ -3256,13 +3321,24 @@ bool LibraryController::anyRemovedNotOnDisk() const
     return false;
 }
 
-void LibraryController::forgetRemoved(const QString &handle)
+bool LibraryController::anyRemovedOnDisk() const
 {
-    if (refusesWhileHeld("forgetting a removed file")) {
+    const QStringList handles = m_removedFiles->handles();
+    for (const QString &handle : handles) {
+        if (removedFileOnDisk(handle)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void LibraryController::forgetRemoved(const QStringList &handles)
+{
+    if (handles.isEmpty() || refusesWhileHeld("forgetting removed files")) {
         return;
     }
-    if (m_fileRepository.forgetRemoved({ handle }) > 0) {
-        m_removedFiles->removeHandles({ handle });
+    if (m_fileRepository.forgetRemoved(handles) > 0) {
+        m_removedFiles->removeHandles(handles);
     }
 }
 
@@ -3290,19 +3366,9 @@ int LibraryController::forgetRemovedNotOnDisk()
     return forgotten;
 }
 
-void LibraryController::restoreAllRemoved()
+int LibraryController::restoreAllRemoved()
 {
-    if (refusesWhileHeld("putting files back")) {
-        return;
-    }
-    const QStringList handles = m_removedFiles->handles();
-    if (handles.isEmpty()) {
-        return;
-    }
-
-    const QList<qint64> folderIds = m_fileRepository.restoreRemoved(handles);
-    m_removedFiles->removeHandles(handles);
-    rescanFoldersQuiet(folderIds);
+    return restoreRemoved(m_removedFiles->handles());
 }
 
 void LibraryController::rescanFoldersQuiet(const QList<qint64> &folderIds)

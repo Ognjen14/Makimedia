@@ -305,6 +305,19 @@ bool SystemBridge::videoPermissionBlocked() const
 #endif
 }
 
+void SystemBridge::restartApp()
+{
+#ifdef Q_OS_ANDROID
+    MM_LOG_I() << "restarting the app";
+    m_settings.sync();
+    QSettings().sync();
+    QJniObject::callStaticMethod<void>(
+        "com/topicdev/makimedia/org/MakimediaRestartActivity", "restartApp", "()V");
+#else
+    MM_LOG_W() << "restarting the app is only done on Android";
+#endif
+}
+
 void SystemBridge::openAppSettings()
 {
 #ifdef Q_OS_ANDROID

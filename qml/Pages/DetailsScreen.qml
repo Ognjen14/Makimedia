@@ -213,7 +213,7 @@ Item {
     property bool removedFromLibrary: false
 
     readonly property bool canRemove:
-        !System.isTelevision && root.indexed
+        !System.isTelevision && root.indexed && !root.isEpisode
         && (!root.present
             || (!root.matched && root.info.suggested !== true))
 
@@ -531,7 +531,9 @@ Item {
 
                     Text {
                         width: parent.width
-                        text: qsTr("It stays in your library with its watch history until you take it out. Remove from library does that, and Settings can put it back if the file returns.")
+                        text: root.isEpisode
+                              ? qsTr("It stays in the show with its watch history. When none of the show's episodes are on disk, the show page can take the whole show out of your library.")
+                              : qsTr("It stays in your library with its watch history until you take it out. Remove from library does that, and if the file comes back, the next scan adds it again.")
                         color: S.AppTheme.textSecondary
                         font.pixelSize: S.AppTheme.fs11
                         wrapMode: Text.Wrap
@@ -1148,7 +1150,9 @@ Item {
                 destructive: true
                 iconSource: S.Icons.close
                 title: qsTr("Remove from library")
-                subtitle: qsTr("The file itself is left alone")
+                subtitle: root.present
+                          ? qsTr("The file stays on disk. Settings can put it back.")
+                          : qsTr("If the file comes back, the next scan adds it again")
                 onClicked: {
                     _moreMenu.close()
                     root.takeOutOfLibrary()

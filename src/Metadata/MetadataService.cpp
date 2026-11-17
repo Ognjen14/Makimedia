@@ -263,16 +263,21 @@ void MetadataService::finish(const QVariantMap &result)
     }
     const qint64 fileId = result.value(QStringLiteral("fileId")).toLongLong();
     m_matching.remove(fileId);
+    settleSetupFile(fileId, result.value(QStringLiteral("unreachable")).toBool());
+    announcePending();
+    emit previewReady(result);
+}
+
+void MetadataService::settleSetupFile(qint64 fileId, bool unreachable)
+{
     m_setupTitleFiles.remove(fileId);
     if (m_setupMatchRunning && m_setupMatching.remove(fileId)) {
-        if (result.value(QStringLiteral("unreachable")).toBool()) {
+        if (unreachable) {
             ++m_setupUnreachable;
         }
         emit setupMatchProgress(m_setupMatchTotal - int(m_setupMatching.size()),
                                 m_setupMatchTotal);
     }
-    announcePending();
-    emit previewReady(result);
 }
 
 void MetadataService::setHeldForSetup(bool held)
@@ -1489,6 +1494,8 @@ void MetadataService::drainMatches()
         const LibraryFile file = m_matchQueue.dequeue();
         if (adoptIntoKnownShow(m_fileRepository.plainById(file.id))) {
             m_matching.remove(file.id);
+            settleSetupFile(file.id, false);
+            announcePending();
             continue;
         }
         const auto parsed = m_setupParsed.constFind(file.id);

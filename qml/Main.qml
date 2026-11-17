@@ -691,6 +691,10 @@ ApplicationWindow {
     function openRemote(url) {
         if (url.length === 0)
             return
+        if (MpvPlayer.playerStuck) {
+            _stuckDialog.open()
+            return
+        }
 
         _savePlayback()
 
@@ -712,6 +716,10 @@ ApplicationWindow {
     function openPlayer(handle, fromStart) {
         if (Streaming.serving) {
             refuseWhileStreaming()
+            return
+        }
+        if (MpvPlayer.playerStuck) {
+            _stuckDialog.open()
             return
         }
 
@@ -761,15 +769,17 @@ ApplicationWindow {
             window.visibility = Window.Windowed
     }
 
-    function closePlayer() {
+    function closePlayer(stuck) {
         if (System.inMiniPlayer) {
             System.leaveMiniPlayer(window)
             window.minimumWidth = window._normalMinimumWidth
             window.minimumHeight = window._normalMinimumHeight
         }
 
-        _savePlayback()
-        _noteFinished()
+        if (stuck !== true) {
+            _savePlayback()
+            _noteFinished()
+        }
         _openHandle = ""
         System.setImmersiveMode(false)
         System.releaseScreenBrightness()
@@ -796,9 +806,32 @@ ApplicationWindow {
         onTriggered: window._offerAfterPlayer()
     }
 
+    C.AppDialog {
+        id: _stuckDialog
+
+        z: 110
+        title: qsTr("This video could not be played")
+        message: qsTr("The video decoder of this device stopped responding while opening it, and stays blocked until Makimedia starts again. Restart Makimedia to keep watching.")
+        acceptText: qsTr("Restart Makimedia")
+        dismissText: qsTr("Later")
+        closeOnScrim: false
+        onAccepted: {
+            Library.noteUi("restarting the app to free the stuck video decoder")
+            System.restartApp()
+        }
+    }
+
     Connections {
         target: MpvPlayer
         function onPausedChanged() { window._applyScreenAwake() }
+
+        function onPlayerStuckChanged() {
+            if (!MpvPlayer.playerStuck)
+                return
+            if (_stack.depth > 1)
+                window.closePlayer(true)
+            _stuckDialog.open()
+        }
 
         function onEndReachedChanged() {
             if (MpvPlayer.endReached)

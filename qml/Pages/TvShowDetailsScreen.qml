@@ -54,6 +54,20 @@ Item {
         return root.show.fileNames()
     }
 
+    readonly property bool allGone: {
+        void Library.fileCount
+        return root.fileHandles.length > 0 && Library.allGone(root.fileHandles)
+    }
+
+    readonly property bool offersMenu:
+        !System.isTelevision && !Streaming.connected && root.fileHandles.length > 0
+        && (!root.suggestedMatch || root.allGone)
+
+    function removeShow() {
+        if (Library.removeShowFromLibrary(root.fileHandles))
+            root.backRequested()
+    }
+
     property var fixCandidates: []
     property bool fixSearching: false
 
@@ -142,24 +156,6 @@ Item {
         onClicked: root.backRequested()
     }
 
-    Ctrl.IconButton {
-        id: _more
-
-        z: 4
-        opacity: _hero.fade
-        visible: !System.isTelevision && !root.suggestedMatch && !Streaming.connected
-                 && root.fileHandles.length > 0 && opacity > 0.01
-        anchors.right: System.isTelevision ? undefined : parent.right
-        anchors.left: System.isTelevision ? parent.left : undefined
-        anchors.top: parent.top
-        anchors.margins: S.AppTheme.spacing4
-        iconSource: S.Icons.moreVertical
-        tintColor: "#FFFFFF"
-        scrim: true
-        accessibleName: qsTr("More")
-        onClicked: _showMenu.open()
-    }
-
     Flickable {
         id: _scroll
 
@@ -189,7 +185,7 @@ Item {
             Item {
                 width: 1
                 height: S.AppTheme.spacing12
-                visible: root.nextUp !== null || root.seasonHasFiles
+                visible: root.nextUp !== null || root.seasonHasFiles || root.offersMenu
             }
 
             Flow {
@@ -197,7 +193,7 @@ Item {
                 spacing: S.AppTheme.spacing8
 
                 Ctrl.AppButton {
-                    visible: root.nextUp !== null
+                    visible: root.nextUp !== null && !root.allGone
                     variant: Ctrl.AppButton.Filled
                     iconSource: S.Icons.play
                     text: {
@@ -213,7 +209,7 @@ Item {
                 Rectangle {
                     width: 1
                     height: S.AppTheme.controlHeightLarge
-                    visible: root.seasonHasFiles && root.nextUp !== null
+                    visible: root.seasonHasFiles && root.nextUp !== null && !root.allGone
                     color: S.AppTheme.outline
                 }
 
@@ -227,6 +223,63 @@ Item {
                                              : qsTr("Mark season watched")
 
                     onClicked: root.setSeasonWatched(!root.seasonWatched)
+                }
+
+                Ctrl.AppButton {
+                    visible: root.offersMenu
+                    iconOnly: true
+                    text: qsTr("More")
+                    variant: Ctrl.AppButton.Outlined
+                    iconSource: S.Icons.moreVertical
+
+                    onClicked: _showMenu.open()
+                }
+            }
+
+            Item {
+                width: 1
+                height: S.AppTheme.spacing14
+                visible: root.allGone
+            }
+
+            Ctrl.Card {
+                width: parent.width
+                visible: root.allGone
+                implicitHeight: _goneText.implicitHeight + 2 * S.AppTheme.spacing14
+                color: S.AppTheme.errorContainer
+
+                Column {
+                    id: _goneText
+
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    spacing: S.AppTheme.spacing6
+
+                    Text {
+                        width: parent.width
+                        text: qsTr("This show's episodes are missing")
+                        color: S.AppTheme.error
+                        font.pixelSize: S.AppTheme.fs15
+                        font.weight: Font.Medium
+                    }
+
+                    Text {
+                        width: parent.width
+                        text: qsTr("None of its files are where Makimedia indexed them. The drive may be disconnected, or the files were moved, renamed or deleted.")
+                        color: S.AppTheme.textPrimary
+                        font.pixelSize: S.AppTheme.fs12
+                        lineHeight: 1.45
+                        lineHeightMode: Text.ProportionalHeight
+                        wrapMode: Text.Wrap
+                    }
+
+                    Text {
+                        width: parent.width
+                        text: qsTr("The show stays in your library with its watch history until you take it out. Remove from library does that, and if the files come back, the next scan adds them again.")
+                        color: S.AppTheme.textSecondary
+                        font.pixelSize: S.AppTheme.fs11
+                        wrapMode: Text.Wrap
+                    }
                 }
             }
 
@@ -666,6 +719,7 @@ Item {
 
             Ctrl.SheetRow {
                 width: parent.width
+                visible: !root.suggestedMatch
                 showRadio: false
                 iconSource: S.Icons.search
                 title: qsTr("Fix match")
@@ -678,21 +732,17 @@ Item {
             }
 
             Ctrl.SheetRow {
-                readonly property int missing: {
-                    void _showMenu.opened
-                    return Library.missingAmong(root.fileHandles)
-                }
-
                 width: parent.width
-                visible: missing > 0
+                visible: root.allGone
                 showRadio: false
+                destructive: true
                 iconSource: S.Icons.close
-                title: qsTr("Remove episodes no longer on disk")
-                subtitle: qsTr("%n episode(s) go to Settings · Removed from library", "", missing)
+                title: qsTr("Remove from library")
+                subtitle: qsTr("If the files come back, the next scan adds them again")
 
                 onClicked: {
                     _showMenu.close()
-                    Library.removeMissingFiles(root.fileHandles)
+                    root.removeShow()
                 }
             }
         }

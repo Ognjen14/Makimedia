@@ -1156,7 +1156,8 @@ int FileRepository::unmatchedCount() const
 }
 
 QList<RemovedFileRecord> FileRepository::removeFromLibrary(
-    const QList<LibraryFile> &files, const QHash<QString, QString> &folderPaths)
+    const QList<LibraryFile> &files, const QHash<QString, QString> &folderPaths,
+    bool remember)
 {
     QList<RemovedFileRecord> removed;
     if (files.isEmpty() || !m_database.transaction()) {
@@ -1165,8 +1166,8 @@ QList<RemovedFileRecord> FileRepository::removeFromLibrary(
 
     const qint64 now = QDateTime::currentDateTimeUtc().toSecsSinceEpoch();
 
-    QSqlQuery remember(m_database.handle());
-    remember.prepare(QStringLiteral(
+    QSqlQuery keep(m_database.handle());
+    keep.prepare(QStringLiteral(
         "INSERT INTO removed_files (file_handle, folder_id, display_name, folder, removed_at) "
         "VALUES (:handle, :folder_id, :name, :folder, :now) "
         "ON CONFLICT(file_handle) DO UPDATE SET folder_id = excluded.folder_id, "
@@ -1188,16 +1189,16 @@ QList<RemovedFileRecord> FileRepository::removeFromLibrary(
         record.folder = folderPaths.value(file.parentHandle, file.parentHandle);
         record.removedAt = now;
 
-        remember.bindValue(QStringLiteral(":handle"), record.handle);
-        remember.bindValue(QStringLiteral(":folder_id"), record.folderId);
-        remember.bindValue(QStringLiteral(":name"), record.displayName);
-        remember.bindValue(QStringLiteral(":folder"), record.folder);
-        remember.bindValue(QStringLiteral(":now"), now);
+        keep.bindValue(QStringLiteral(":handle"), record.handle);
+        keep.bindValue(QStringLiteral(":folder_id"), record.folderId);
+        keep.bindValue(QStringLiteral(":name"), record.displayName);
+        keep.bindValue(QStringLiteral(":folder"), record.folder);
+        keep.bindValue(QStringLiteral(":now"), now);
         forget.bindValue(QStringLiteral(":id"), file.id);
 
-        if (!remember.exec() || !forget.exec()) {
+        if ((remember && !keep.exec()) || !forget.exec()) {
             MM_LOG_E() << "could not take" << file.handle << "out of the library"
-                       << remember.lastError().text() << forget.lastError().text();
+                       << keep.lastError().text() << forget.lastError().text();
             m_database.rollback();
             return QList<RemovedFileRecord>();
         }
@@ -1209,8 +1210,13 @@ QList<RemovedFileRecord> FileRepository::removeFromLibrary(
         return QList<RemovedFileRecord>();
     }
 
-    MM_LOG_I() << "took" << removed.size() << "files out of the library;"
-               << "scans will pass over them";
+    if (remember) {
+        MM_LOG_I() << "took" << removed.size() << "files out of the library;"
+                   << "scans will pass over them";
+    } else {
+        MM_LOG_I() << "forgot" << removed.size() << "files no longer on disk;"
+                   << "a scan that finds them again adds them as new";
+    }
     return removed;
 }
 

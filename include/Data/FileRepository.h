@@ -203,7 +203,8 @@ public:
     int unmatchedCount() const;
 
     QList<RemovedFileRecord> removeFromLibrary(const QList<LibraryFile> &files,
-                                               const QHash<QString, QString> &folderPaths);
+                                               const QHash<QString, QString> &folderPaths,
+                                               bool remember = true);
     QList<RemovedFileRecord> removedFiles() const;
     QList<qint64> restoreRemoved(const QStringList &handles);
     int forgetRemoved(const QStringList &handles);

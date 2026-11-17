@@ -32,6 +32,7 @@ class MpvController : public QObject
     Q_PROPERTY(bool paused READ paused WRITE setPaused NOTIFY pausedChanged FINAL)
     Q_PROPERTY(bool buffering READ buffering NOTIFY bufferingChanged FINAL)
     Q_PROPERTY(bool endReached READ endReached NOTIFY endReachedChanged FINAL)
+    Q_PROPERTY(bool playerStuck READ playerStuck NOTIFY playerStuckChanged FINAL)
     Q_PROPERTY(bool allowUnsupportedPicture READ allowUnsupportedPicture
                WRITE setAllowUnsupportedPicture
                NOTIFY allowUnsupportedPictureChanged FINAL)
@@ -84,6 +85,7 @@ public:
 
     bool buffering() const;
     bool endReached() const;
+    bool playerStuck() const;
 
     bool allowUnsupportedPicture() const;
     void setAllowUnsupportedPicture(bool allow);
@@ -171,6 +173,7 @@ signals:
     void pausedChanged();
     void bufferingChanged();
     void endReachedChanged();
+    void playerStuckChanged();
     void allowUnsupportedPictureChanged();
     void positionChanged();
     void durationChanged();
@@ -199,6 +202,7 @@ private slots:
     void drainEvents();
     void logPlaybackHealth();
     void giveUpOnOpening();
+    void onStopTimedOut();
     void flushMpvRepeats();
 
     void onFocusLost();
@@ -210,6 +214,9 @@ private slots:
 private:
     static constexpr quint64 kPreloadedHookId = 1;
 
+    bool createEngine();
+    void markPlayerStuck(const QString &why);
+    QString stuckMessage() const;
     void observeProperties();
     void addPreloadedSubtitles();
     void pickPreloadedSubtitle();
@@ -299,6 +306,12 @@ private:
     double m_audioDelay = 0.0;
     bool m_renderContextActive = false;
     bool m_videoSurfaceAttached = false;
+
+    bool m_playbackWanted = false;
+    bool m_engineStuck = false;
+    QTimer m_stopTimer;
+    double m_stillPosition = -1.0;
+    QElapsedTimer m_stillFor;
     QString m_pendingOpenPath;
     QString m_subtitlesPath;
     QVariantList m_pendingSubtitles;

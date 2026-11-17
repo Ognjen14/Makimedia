@@ -513,6 +513,12 @@ Item {
 
         title: qsTr("Removed from library")
 
+        readonly property var titles: {
+            void Library.removedFiles.count
+            void _removedFiles.opened
+            return Library.removedTitles()
+        }
+
         Column {
             width: parent.width
             spacing: 0
@@ -520,9 +526,9 @@ Item {
             Text {
                 width: parent.width
                 bottomPadding: S.AppTheme.spacing8
-                text: qsTr("Put a file back and the next scan adds it to your library again. "
-                           + "Files no longer on disk can be removed completely instead, "
-                           + "so nothing of them is kept.")
+                text: qsTr("Put a title back and the next scan adds it to your library again. "
+                           + "Only files that are on disk can be put back. Titles no longer "
+                           + "on disk can be removed completely, so nothing of them is kept.")
                 color: S.AppTheme.textSecondary
                 font.pixelSize: S.AppTheme.fs13
                 wrapMode: Text.Wrap
@@ -550,31 +556,34 @@ Item {
 
             Ctrl.ListRow {
                 width: parent.width
-                visible: Library.removedFiles.count > 1
+                visible: {
+                    void Library.removedFiles.count
+                    void _removedFiles.opened
+                    return _removedFiles.titles.length > 1 && Library.anyRemovedOnDisk()
+                }
                 leading: Ctrl.ListRow.Icon
                 iconSource: S.Icons.plus
                 title: qsTr("Put all back")
-                subtitle: qsTr("%n file(s)", "", Library.removedFiles.count)
+                subtitle: qsTr("Everything that is on disk")
                 onClicked: {
                     Library.restoreAllRemoved()
-                    _removedFiles.close()
+                    if (Library.removedFiles.count === 0)
+                        _removedFiles.close()
                 }
             }
 
             Repeater {
-                model: Library.removedFiles
+                model: _removedFiles.titles
 
                 delegate: Item {
                     id: _removedRow
 
-                    required property string handle
-                    required property string displayName
-                    required property string folder
+                    required property var modelData
 
-                    readonly property bool onDisk: {
-                        void _removedFiles.opened
-                        return Library.removedFileOnDisk(handle)
-                    }
+                    readonly property var handles: modelData.handles
+                    readonly property int fileCount: handles.length
+                    readonly property int onDiskCount: modelData.onDiskCount
+                    readonly property bool onDisk: onDiskCount > 0
 
                     function done() {
                         if (Library.removedFiles.count === 0)
@@ -596,7 +605,7 @@ Item {
 
                         Text {
                             width: parent.width
-                            text: _removedRow.displayName
+                            text: _removedRow.modelData.title
                             color: S.AppTheme.textPrimary
                             font.pixelSize: S.AppTheme.fs14
                             elide: Text.ElideMiddle
@@ -604,9 +613,21 @@ Item {
 
                         Text {
                             width: parent.width
-                            text: _removedRow.onDisk
-                                  ? _removedRow.folder
-                                  : qsTr("No longer on disk  ·  %1").arg(_removedRow.folder)
+                            text: {
+                                const count = _removedRow.fileCount
+                                const onDisk = _removedRow.onDiskCount
+                                const folder = _removedRow.modelData.folder
+                                let state
+                                if (onDisk === 0)
+                                    state = count > 1 ? qsTr("%n file(s), none on disk", "", count)
+                                                      : qsTr("No longer on disk")
+                                else if (onDisk < count)
+                                    state = qsTr("%1 of %n file(s) on disk", "", count).arg(onDisk)
+                                else
+                                    state = count > 1 ? qsTr("%n file(s)", "", count) : ""
+                                return state.length > 0 ? qsTr("%1  ·  %2").arg(state).arg(folder)
+                                                        : folder
+                            }
                             color: S.AppTheme.textSecondary
                             font.pixelSize: S.AppTheme.fs12
                             elide: Text.ElideMiddle
@@ -623,9 +644,10 @@ Item {
                         Ctrl.AppButton {
                             size: Ctrl.AppButton.Medium
                             variant: Ctrl.AppButton.Outlined
+                            enabled: _removedRow.onDisk
                             text: qsTr("Put back")
                             onClicked: {
-                                Library.restoreRemoved(_removedRow.handle)
+                                Library.restoreRemoved(_removedRow.handles)
                                 _removedRow.done()
                             }
                         }
@@ -635,7 +657,7 @@ Item {
                             variant: Ctrl.AppButton.Outlined
                             text: qsTr("Remove completely")
                             onClicked: {
-                                Library.forgetRemoved(_removedRow.handle)
+                                Library.forgetRemoved(_removedRow.handles)
                                 _removedRow.done()
                             }
                         }
@@ -672,11 +694,23 @@ Item {
                 height: visible ? implicitHeight : 0
                 leading: Ctrl.ListRow.Icon
                 iconSource: S.Icons.lock
-                title: qsTr("Videos on this device")
-                subtitle: System.videoAccessPartial
-                          ? qsTr("Only the ones you picked are in the library")
-                          : qsTr("None of them are in the library")
-                onClicked: System.openAppSettings()
+                title: System.videoPermissionBlocked
+                       ? qsTr("Allow access to videos in Android settings")
+                       : qsTr("Allow access to videos on this device")
+                subtitle: {
+                    const now = System.videoAccessPartial
+                                ? qsTr("Only the videos you picked are in the library.")
+                                : qsTr("None of this device's videos are in the library.")
+                    return now + " " + (System.videoPermissionBlocked
+                                        ? qsTr("Opens this app's page in Android settings, under Permissions.")
+                                        : qsTr("Asks Android for permission to read them."))
+                }
+                onClicked: {
+                    if (System.videoPermissionBlocked)
+                        System.openAppSettings()
+                    else
+                        System.requestVideoPermission()
+                }
             }
 
             Ctrl.Divider {
@@ -864,8 +898,10 @@ Item {
                 leading: Ctrl.ListRow.Icon
                 iconSource: S.Icons.noVideo
                 title: qsTr("Removed from library")
-                subtitle: qsTr("%n file(s) taken out, still on disk", "",
-                               Library.removedFiles.count)
+                subtitle: {
+                    void Library.removedFiles.count
+                    return qsTr("%n title(s) taken out", "", Library.removedTitles().length)
+                }
                 onClicked: _removedFiles.open()
             }
 

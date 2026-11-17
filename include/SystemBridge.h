@@ -102,6 +102,7 @@ public:
 
     bool videoPermissionBlocked() const;
     Q_INVOKABLE void openAppSettings();
+    Q_INVOKABLE void restartApp();
 
     void setFileTypesRegistered(bool registered);
 

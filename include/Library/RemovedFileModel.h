@@ -32,6 +32,7 @@ public:
     void prependFiles(const QList<RemovedFileRecord> &files);
     void removeHandles(const QStringList &handles);
     QStringList handles() const;
+    const QList<RemovedFileRecord> &files() const { return m_files; }
 
 signals:
     void countChanged();

@@ -1398,13 +1398,14 @@ Item {
                 showRadio: false
                 visible: !System.isTelevision
                          && root.menuInfo.indexed === true
+                         && root.menuInfo.isEpisode !== true
                          && (root.menuInfo.present === false
                              || (root.menuInfo.matched !== true
                                  && root.menuInfo.suggested !== true))
                 iconSource: S.Icons.close
                 title: qsTr("Remove from library")
                 subtitle: root.menuInfo.present === false
-                          ? qsTr("The file is missing. Settings can put it back if it returns.")
+                          ? qsTr("If the file comes back, the next scan adds it again")
                           : qsTr("The file stays on disk. Settings can put it back.")
                 onClicked: {
                     _itemMenu.close()

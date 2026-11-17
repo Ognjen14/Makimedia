@@ -253,13 +253,15 @@ public:
     Q_INVOKABLE void removeFromLibrary(const QString &handle);
     Q_INVOKABLE int hideableUnmatchedCount();
     Q_INVOKABLE void hideAllUnmatched();
-    Q_INVOKABLE void restoreRemoved(const QString &handle);
-    Q_INVOKABLE void restoreAllRemoved();
+    Q_INVOKABLE QVariantList removedTitles() const;
+    Q_INVOKABLE int restoreRemoved(const QStringList &handles);
+    Q_INVOKABLE int restoreAllRemoved();
     Q_INVOKABLE bool removedFileOnDisk(const QString &handle) const;
-    Q_INVOKABLE int missingAmong(const QStringList &handles) const;
-    Q_INVOKABLE void removeMissingFiles(const QStringList &handles);
+    Q_INVOKABLE bool allGone(const QStringList &handles) const;
+    Q_INVOKABLE bool removeShowFromLibrary(const QStringList &handles);
     Q_INVOKABLE bool anyRemovedNotOnDisk() const;
-    Q_INVOKABLE void forgetRemoved(const QString &handle);
+    Q_INVOKABLE bool anyRemovedOnDisk() const;
+    Q_INVOKABLE void forgetRemoved(const QStringList &handles);
     Q_INVOKABLE int forgetRemovedNotOnDisk();
 
     Q_INVOKABLE void reloadMedia();
@@ -417,7 +419,7 @@ private:
     void flushThumbnailWants();
     void onProbed(const ProbeInfo &info);
     bool refusesWhileHeld(const char *what) const;
-    void takeOutOfLibrary(const QList<LibraryFile> &files);
+    void takeOutOfLibrary(const QList<LibraryFile> &files, bool remember = true);
     void rescanFoldersQuiet(const QList<qint64> &folderIds);
     void reloadCurrentView();
     QList<LibraryFile> applyOptions(const QList<LibraryFile> &files) const;

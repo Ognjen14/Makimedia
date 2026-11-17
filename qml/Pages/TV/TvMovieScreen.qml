@@ -24,7 +24,10 @@ Item {
     readonly property bool acceptsFocus: true
 
     function takeFocus() {
-        _play.forceActiveFocus(Qt.TabFocusReason)
+        if (root.gone)
+            _remove.forceActiveFocus(Qt.TabFocusReason)
+        else
+            _play.forceActiveFocus(Qt.TabFocusReason)
     }
 
     readonly property int safeX: Math.round(width * 0.045)
@@ -60,6 +63,11 @@ Item {
     readonly property real resumeSeconds:
         info.resumeSeconds === undefined ? 0 : info.resumeSeconds
     readonly property bool partiallyWatched: !finished && resumeSeconds > 0
+
+    readonly property bool gone:
+        indexed && info.present === false && !Streaming.connected
+
+    onGoneChanged: Qt.callLater(root.takeFocus)
 
     function value(key) {
         return info[key] === undefined ? "" : info[key]
@@ -210,6 +218,17 @@ Item {
                 }
             }
 
+            Text {
+                Layout.preferredWidth: root.contentWidth
+                Layout.maximumWidth: root.contentWidth
+                Layout.topMargin: S.AppTheme.spacing4
+                visible: root.gone
+                text: qsTr("This file is missing. The drive may be disconnected, or the file was moved, renamed or deleted.")
+                color: S.AppTheme.error
+                font.pixelSize: S.AppTheme.fs15
+                wrapMode: Text.WordWrap
+            }
+
             Row {
                 id: _actions
 
@@ -222,9 +241,25 @@ Item {
                        : 1
 
                 Ctrl.AppButton {
+                    id: _remove
+
+                    height: root.actionHeight
+                    visible: root.gone
+                    text: qsTr("Remove from library")
+                    variant: Ctrl.AppButton.Filled
+
+                    Keys.onLeftPressed: root.drawerRequested()
+                    onClicked: {
+                        Library.removeFromLibrary(root.handle)
+                        root.backRequested()
+                    }
+                }
+
+                Ctrl.AppButton {
                     id: _play
 
                     height: root.actionHeight
+                    visible: !root.gone
                     text: root.finished
                           ? qsTr("Play again")
                           : (root.partiallyWatched ? qsTr("Resume") : qsTr("Play"))
@@ -241,7 +276,7 @@ Item {
                     id: _fromStart
 
                     height: root.actionHeight
-                    visible: root.partiallyWatched
+                    visible: root.partiallyWatched && !root.gone
                     text: qsTr("From start")
                     variant: Ctrl.AppButton.Outlined
 
@@ -254,6 +289,7 @@ Item {
                     id: _watched
 
                     height: root.actionHeight
+                    visible: !root.gone
                     text: root.finished ? qsTr("Mark as unwatched")
                                         : qsTr("Mark as watched")
                     variant: Ctrl.AppButton.Outlined
@@ -277,7 +313,8 @@ Item {
                     text: root.attachedSubtitles.length > 0
                           ? qsTr("Change subtitles") : qsTr("Subtitles")
                     variant: Ctrl.AppButton.Outlined
-                    visible: !Streaming.connected || Streaming.canFindSubtitles
+                    visible: !root.gone
+                             && (!Streaming.connected || Streaming.canFindSubtitles)
 
                     KeyNavigation.left: _watched
                     KeyNavigation.right: _fixMatch.visible ? _fixMatch : null
@@ -293,7 +330,7 @@ Item {
                     id: _fixMatch
 
                     height: root.actionHeight
-                    visible: root.metadata.suggested === true
+                    visible: root.metadata.suggested === true && !root.gone
                     text: qsTr("Fix match")
                     variant: Ctrl.AppButton.Outlined
                     enabled: Metadata.available && root.indexed

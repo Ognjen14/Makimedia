@@ -24,7 +24,9 @@ Item {
     readonly property bool acceptsFocus: true
 
     function takeFocus() {
-        if (_continue.visible)
+        if (root.allGone)
+            _removeShow.forceActiveFocus(Qt.TabFocusReason)
+        else if (_continue.visible)
             _continue.forceActiveFocus(Qt.TabFocusReason)
         else if (_rail.count > 0)
             _rail.forceActiveFocus(Qt.TabFocusReason)
@@ -67,6 +69,19 @@ Item {
     readonly property var nextUp: show.hasNextUp ? show.nextUp : null
 
     readonly property bool seasonWatched: show.seasonWatched
+
+    readonly property bool allGone: {
+        void root.show.count
+        void Library.fileCount
+        return !Streaming.connected && Library.allGone(root.show.fileHandles())
+    }
+
+    onAllGoneChanged: Qt.callLater(root.takeFocus)
+
+    function removeShow() {
+        if (Library.removeShowFromLibrary(root.fileHandles()))
+            root.backRequested()
+    }
 
     function setSeasonWatched(watched) {
         Library.setAllWatched(show.seasonFileHandles(), watched)
@@ -232,6 +247,16 @@ Item {
             lineHeight: 1.35
         }
 
+        Text {
+            Layout.preferredWidth: root.heroTextWidth
+            Layout.maximumWidth: root.heroTextWidth
+            visible: root.allGone
+            text: qsTr("This show's episodes are missing. The drive may be disconnected, or the files were moved, renamed or deleted.")
+            color: S.AppTheme.error
+            font.pixelSize: S.AppTheme.fs15
+            wrapMode: Text.WordWrap
+        }
+
         Item {
             Layout.topMargin: S.AppTheme.spacing8
             Layout.preferredWidth: root.heroTextWidth
@@ -248,10 +273,23 @@ Item {
                        : 1
 
                 Ctrl.AppButton {
+                    id: _removeShow
+
+                    height: root.actionHeight
+                    visible: root.allGone
+                    text: qsTr("Remove from library")
+                    variant: Ctrl.AppButton.Filled
+
+                    Keys.onLeftPressed: root.drawerRequested()
+                    Keys.onDownPressed: root.focusBelowHero()
+                    onClicked: root.removeShow()
+                }
+
+                Ctrl.AppButton {
                     id: _continue
 
                     height: root.actionHeight
-                    visible: root.nextUp !== null
+                    visible: root.nextUp !== null && !root.allGone
                     text: {
                         if (root.nextUp === null)
                             return ""
@@ -271,6 +309,7 @@ Item {
                     id: _markSeason
 
                     height: root.actionHeight
+                    visible: !root.allGone
                     text: root.seasonWatched ? qsTr("Mark season unwatched")
                                              : qsTr("Mark season watched")
                     variant: Ctrl.AppButton.Outlined
@@ -291,7 +330,7 @@ Item {
                     id: _fixShow
 
                     height: root.actionHeight
-                    visible: root.info.suggested === true
+                    visible: root.info.suggested === true && !root.allGone
                     text: qsTr("Fix match")
                     variant: Ctrl.AppButton.Outlined
                     enabled: Metadata.available
@@ -312,7 +351,9 @@ Item {
     }
 
     function focusHero() {
-        if (_continue.visible)
+        if (root.allGone)
+            _removeShow.forceActiveFocus(Qt.TabFocusReason)
+        else if (_continue.visible)
             _continue.forceActiveFocus(Qt.TabFocusReason)
         else
             _markSeason.forceActiveFocus(Qt.TabFocusReason)
@@ -406,7 +447,8 @@ Item {
                         root.focusHero()
                     event.accepted = true
                 } else if (event.key === Qt.Key_Down) {
-                    if (_rail.currentItem && item && item.hasFile === true) {
+                    if (_rail.currentItem && item && item.hasFile === true
+                            && !root.allGone) {
                         _rail.currentItem.focusPlay()
                         event.accepted = true
                     }
@@ -555,6 +597,7 @@ Item {
                         spacing: S.AppTheme.spacing8
                         visible: _episode.current
                                  && _episode.model.hasFile === true
+                                 && !root.allGone
 
                         Ctrl.AppButton {
                             id: _episodePlay
