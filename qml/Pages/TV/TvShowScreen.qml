@@ -350,6 +350,21 @@ Item {
             _rail.forceActiveFocus(Qt.TabFocusReason)
     }
 
+    function applyPendingSeason() {
+        _seasonApply.stop()
+        const index = _seasons.currentIndex
+        if (index >= 0 && index < root.seasons.length
+                && root.seasons[index] !== root.show.season)
+            root.show.season = root.seasons[index]
+    }
+
+    Timer {
+        id: _seasonApply
+
+        interval: 250
+        onTriggered: root.applyPendingSeason()
+    }
+
     function focusHero() {
         if (root.allGone)
             _removeShow.forceActiveFocus(Qt.TabFocusReason)
@@ -385,24 +400,46 @@ Item {
             keyNavigationWraps: false
             clip: true
 
+            property double lastStep: 0
+
             Keys.onPressed: (event) => {
+                if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
+                    const now = Date.now()
+                    if (event.isAutoRepeat && now - _seasons.lastStep < 200) {
+                        event.accepted = true
+                        return
+                    }
+                    _seasons.lastStep = now
+                }
+
                 if (event.key === Qt.Key_Down) {
+                    root.applyPendingSeason()
                     if (_rail.count > 0)
                         _rail.forceActiveFocus(Qt.TabFocusReason)
                     event.accepted = true
                 } else if (event.key === Qt.Key_Up) {
+                    root.applyPendingSeason()
                     root.focusHero()
                     event.accepted = true
                 } else if (event.key === Qt.Key_Left
                            && _seasons.currentIndex === 0) {
+                    root.applyPendingSeason()
                     root.drawerRequested()
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Select
+                           || event.key === Qt.Key_Return
+                           || event.key === Qt.Key_Enter) {
+                    root.applyPendingSeason()
                     event.accepted = true
                 }
             }
 
             onCurrentIndexChanged: {
-                if (currentIndex >= 0 && currentIndex < root.seasons.length)
-                    root.show.season = root.seasons[currentIndex]
+                if (currentIndex >= 0 && currentIndex < root.seasons.length
+                        && root.seasons[currentIndex] !== root.show.season)
+                    _seasonApply.restart()
+                else
+                    _seasonApply.stop()
             }
 
             delegate: Ctrl.Chip {

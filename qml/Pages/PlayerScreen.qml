@@ -1759,7 +1759,7 @@ Item {
 
             Ctrl.ChipGroup {
                 width: parent.width
-                options: [80, 100, 120, 150]
+                options: [50, 80, 100, 120, 150, 175, 200, 250]
                 textFor: (percent) => percent + "%"
                 value: AppSettings.subtitleScalePercent
                 onChosen: (value) => AppSettings.subtitleScalePercent = value
