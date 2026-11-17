@@ -754,10 +754,20 @@ Item {
         Loader {
             id: _pageLoader
 
-            anchors.left: parent.left
-            anchors.right: parent.right
             anchors.top: _appBar.bottom
-            anchors.bottom: parent.bottom
+
+            Binding on width {
+                when: _content.visible
+                value: _content.width
+                restoreMode: Binding.RestoreNone
+            }
+
+            Binding on height {
+                when: _content.visible
+                value: _content.height - _appBar.height
+                restoreMode: Binding.RestoreNone
+            }
+
             sourceComponent: {
                 if (root.showMediaId > 0)
                     return System.isTelevision ? _tvShowScreen : _showScreen
@@ -799,10 +809,7 @@ Item {
                                             && root.keptLoaderFor(root.currentKey) === _homeKeep
             property bool used: false
 
-            anchors.left: parent.left
-            anchors.right: parent.right
             anchors.top: _appBar.bottom
-            anchors.bottom: parent.bottom
             active: used
             asynchronous: true
             visible: current
@@ -810,6 +817,18 @@ Item {
 
             onCurrentChanged: if (current) used = true
             Component.onCompleted: if (current) used = true
+
+            Binding on width {
+                when: _content.visible && _homeKeep.current
+                value: _content.width
+                restoreMode: Binding.RestoreNone
+            }
+
+            Binding on height {
+                when: _content.visible && _homeKeep.current
+                value: _content.height - _appBar.height
+                restoreMode: Binding.RestoreNone
+            }
         }
 
         Loader {
@@ -820,10 +839,7 @@ Item {
                                             && root.keptLoaderFor(root.currentKey) === _allKeep
             property bool used: false
 
-            anchors.left: parent.left
-            anchors.right: parent.right
             anchors.top: _appBar.bottom
-            anchors.bottom: parent.bottom
             active: used
             asynchronous: true
             visible: current
@@ -831,6 +847,18 @@ Item {
 
             onCurrentChanged: if (current) used = true
             Component.onCompleted: if (current) used = true
+
+            Binding on width {
+                when: _content.visible && _allKeep.current
+                value: _content.width
+                restoreMode: Binding.RestoreNone
+            }
+
+            Binding on height {
+                when: _content.visible && _allKeep.current
+                value: _content.height - _appBar.height
+                restoreMode: Binding.RestoreNone
+            }
         }
 
         Loader {
@@ -841,10 +869,7 @@ Item {
                                             && root.keptLoaderFor(root.currentKey) === _moviesKeep
             property bool used: false
 
-            anchors.left: parent.left
-            anchors.right: parent.right
             anchors.top: _appBar.bottom
-            anchors.bottom: parent.bottom
             active: used
             asynchronous: true
             visible: current
@@ -852,6 +877,18 @@ Item {
 
             onCurrentChanged: if (current) used = true
             Component.onCompleted: if (current) used = true
+
+            Binding on width {
+                when: _content.visible && _moviesKeep.current
+                value: _content.width
+                restoreMode: Binding.RestoreNone
+            }
+
+            Binding on height {
+                when: _content.visible && _moviesKeep.current
+                value: _content.height - _appBar.height
+                restoreMode: Binding.RestoreNone
+            }
         }
 
         Loader {
@@ -862,10 +899,7 @@ Item {
                                             && root.keptLoaderFor(root.currentKey) === _showsKeep
             property bool used: false
 
-            anchors.left: parent.left
-            anchors.right: parent.right
             anchors.top: _appBar.bottom
-            anchors.bottom: parent.bottom
             active: used
             asynchronous: true
             visible: current
@@ -873,6 +907,18 @@ Item {
 
             onCurrentChanged: if (current) used = true
             Component.onCompleted: if (current) used = true
+
+            Binding on width {
+                when: _content.visible && _showsKeep.current
+                value: _content.width
+                restoreMode: Binding.RestoreNone
+            }
+
+            Binding on height {
+                when: _content.visible && _showsKeep.current
+                value: _content.height - _appBar.height
+                restoreMode: Binding.RestoreNone
+            }
         }
 
         Loader {
@@ -883,10 +929,7 @@ Item {
                                             && root.keptLoaderFor(root.currentKey) === _collectionsKeep
             property bool used: false
 
-            anchors.left: parent.left
-            anchors.right: parent.right
             anchors.top: _appBar.bottom
-            anchors.bottom: parent.bottom
             active: used
             asynchronous: true
             visible: current
@@ -894,6 +937,18 @@ Item {
 
             onCurrentChanged: if (current) used = true
             Component.onCompleted: if (current) used = true
+
+            Binding on width {
+                when: _content.visible && _collectionsKeep.current
+                value: _content.width
+                restoreMode: Binding.RestoreNone
+            }
+
+            Binding on height {
+                when: _content.visible && _collectionsKeep.current
+                value: _content.height - _appBar.height
+                restoreMode: Binding.RestoreNone
+            }
         }
 
         Ctrl.PageSkeleton {
@@ -1420,12 +1475,22 @@ Item {
         id: _detailsLoader
 
         anchors.left: root.modalDrawer ? parent.left : _permanentDrawer.right
-        anchors.right: parent.right
         anchors.top: parent.top
-        anchors.bottom: parent.bottom
         z: 20
         active: root.showDetails
         visible: root.showDetails
+
+        Binding on width {
+            when: root.visible
+            value: root.width - _detailsLoader.x
+            restoreMode: Binding.RestoreNone
+        }
+
+        Binding on height {
+            when: root.visible
+            value: root.height
+            restoreMode: Binding.RestoreNone
+        }
 
         sourceComponent: System.isTelevision ? _tvDetailsScreen : _detailsScreen
     }

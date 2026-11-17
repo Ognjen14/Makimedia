@@ -20,9 +20,17 @@ Item {
         _grid.forceActiveFocus()
     }
 
-    readonly property real gridWidth: width - 2 * S.AppTheme.spacing16
+    Ctrl.SettledWidth {
+        id: _layoutWidth
+
+        source: root.width
+        live: root.visible
+    }
+
+    readonly property real layoutWidth: _layoutWidth.value
+    readonly property real gridWidth: layoutWidth - 2 * S.AppTheme.spacing16
     readonly property int columnCount:
-        S.AppTheme.gridColumns(width, 1)
+        S.AppTheme.gridColumns(layoutWidth, 1)
     readonly property real tileWidth:
         (gridWidth - S.AppTheme.scrollBarWidth
          - (columnCount - 1) * S.AppTheme.spacing10) / columnCount

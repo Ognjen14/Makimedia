@@ -70,7 +70,7 @@ RemoteButton {
             Image {
                 anchors.fill: parent
                 source: _layer.source
-                sourceSize.width: Math.ceil(width * Screen.devicePixelRatio / 64) * 64
+                sourceSize.width: Math.ceil(width * Screen.devicePixelRatio / 128) * 128
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
                 visible: status === Image.Ready
@@ -163,7 +163,7 @@ RemoteButton {
                         Image {
                             anchors.fill: parent
                             source: root.artSource
-                            sourceSize.width: Math.ceil(width * Screen.devicePixelRatio / 64) * 64
+                            sourceSize.width: Math.ceil(width * Screen.devicePixelRatio / 128) * 128
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
                             visible: status === Image.Ready

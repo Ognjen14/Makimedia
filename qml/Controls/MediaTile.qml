@@ -152,8 +152,8 @@ RemoteButton {
                                 ? width * AppTheme.posterAspectRatio
                                 : parent.height
                         source: root.artSource
-                        sourceSize.width: Math.ceil(width * Screen.devicePixelRatio / 64) * 64
-                        sourceSize.height: Math.ceil(height * Screen.devicePixelRatio / 64) * 64
+                        sourceSize.width: Math.ceil(width * Screen.devicePixelRatio / 128) * 128
+                        sourceSize.height: Math.ceil(height * Screen.devicePixelRatio / 128) * 128
                         fillMode: root.topCropArt ? Image.PreserveAspectFit
                                                   : Image.PreserveAspectCrop
                         asynchronous: true

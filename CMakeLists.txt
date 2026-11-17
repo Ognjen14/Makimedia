@@ -413,6 +413,7 @@ qt_add_qml_module(appmakimedia
         qml/Controls/SearchBar.qml
         qml/Controls/SectionLabel.qml
         qml/Controls/SeekBar.qml
+        qml/Controls/SettledWidth.qml
         qml/Controls/SettingsRow.qml
         qml/Controls/SortFilterSheet.qml
         qml/Controls/Snackbar.qml
