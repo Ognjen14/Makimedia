@@ -1729,6 +1729,25 @@ void MpvController::addSubtitleFile(const QString &path, const QString &title)
     command({QStringLiteral("sub-add"), path, QStringLiteral("select"), title});
 }
 
+void MpvController::setSubtitleCover(double percent)
+{
+    const double cover = qBound(0.0, percent, 95.0);
+    if (qAbs(cover - m_subtitleCover) < 0.5) {
+        return;
+    }
+    m_subtitleCover = cover;
+    applySubtitlePosition();
+}
+
+void MpvController::applySubtitlePosition()
+{
+    int subPos = m_subPosBase;
+    if (m_subPosBase > 50 && m_subtitleCover > 0.0) {
+        subPos = qBound(5, qRound(100.0 - m_subtitleCover - 2.0), m_subPosBase);
+    }
+    setPropertyVariant(QStringLiteral("sub-pos"), subPos);
+}
+
 void MpvController::setPropertyFallback(const QString &name,
                                         const QString &legacyName,
                                         const QVariant &value)
@@ -1798,7 +1817,8 @@ void MpvController::applySubtitleStyle(const QVariantMap &options)
     } else if (position == QLatin1String("top")) {
         subPos = 5;
     }
-    setPropertyVariant(QStringLiteral("sub-pos"), subPos);
+    m_subPosBase = subPos;
+    applySubtitlePosition();
 
     setPropertyFallback(QStringLiteral("sub-ass-override"),
                         QStringLiteral("ass-style-override"),

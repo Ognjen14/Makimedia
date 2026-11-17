@@ -13,6 +13,7 @@ Item {
     property string position: "bottom"
     property color textColor: "#FFFFFFFF"
     property bool bold: false
+    property real cover: 0
 
     visible: text.length > 0
 
@@ -27,9 +28,12 @@ Item {
         anchors.bottom: root.position === "top" ? undefined : parent.bottom
 
         anchors.topMargin: Math.round(root.height * 0.06)
-        anchors.bottomMargin: root.position === "raised"
-                              ? Math.round(root.height * 0.18)
-                              : Math.round(root.height * 0.06)
+        anchors.bottomMargin: Math.max(root.position === "raised"
+                                       ? Math.round(root.height * 0.18)
+                                       : Math.round(root.height * 0.06),
+                                       root.cover > 0
+                                       ? Math.round(root.cover + root.height * 0.02)
+                                       : 0)
 
         width: Math.min(_label.paintedWidth + 2 * AppTheme.spacing14, root.width)
         height: _label.paintedHeight + 2 * AppTheme.spacing8

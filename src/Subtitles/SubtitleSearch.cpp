@@ -307,6 +307,8 @@ void SubtitleSearch::takePcCandidates(const QJsonObject &answer)
         }
     }
 
+    sortCandidates();
+
     MM_LOG_I() << "the PC offered" << m_candidates.size() << "subtitles";
 
     setBusy(false);
@@ -573,13 +575,7 @@ void SubtitleSearch::takeCandidates(const QByteArray &body)
         }
     }
 
-    std::stable_sort(m_candidates.begin(), m_candidates.end(),
-                     [](const Candidate &a, const Candidate &b) {
-        if (a.hashMatched != b.hashMatched) {
-            return a.hashMatched;
-        }
-        return a.downloads > b.downloads;
-    });
+    sortCandidates();
 
     MM_LOG_I() << "opensubtitles offered" << m_candidates.size() << "subtitles,"
                << std::count_if(m_candidates.cbegin(), m_candidates.cend(),
@@ -593,6 +589,32 @@ void SubtitleSearch::takeCandidates(const QByteArray &body)
     if (m_candidates.isEmpty()) {
         emit failed(tr("Nothing found for this one."));
     }
+}
+
+void SubtitleSearch::sortCandidates()
+{
+    const QStringList wanted = m_settings.subtitleSearchLanguages();
+    const auto rank = [&wanted](const QString &language) {
+        for (qsizetype i = 0; i < wanted.size(); ++i) {
+            if (wanted.at(i).compare(language, Qt::CaseInsensitive) == 0) {
+                return i;
+            }
+        }
+        return wanted.size();
+    };
+
+    std::stable_sort(m_candidates.begin(), m_candidates.end(),
+                     [&rank](const Candidate &a, const Candidate &b) {
+        const qsizetype rankA = rank(a.language);
+        const qsizetype rankB = rank(b.language);
+        if (rankA != rankB) {
+            return rankA < rankB;
+        }
+        if (a.hashMatched != b.hashMatched) {
+            return a.hashMatched;
+        }
+        return a.downloads > b.downloads;
+    });
 }
 
 void SubtitleSearch::fetch(int index)

@@ -12,6 +12,9 @@ Item {
     property string title
     property bool opened: false
     property real maxHeightFraction: 0.82
+    property bool seeThrough: false
+
+    readonly property real coveredHeight: opened ? _panel.height + keyboardHeight : 0
 
     readonly property real keyboardHeight: {
         const bottom = root.mapToItem(null, 0, root.height).y
@@ -253,6 +256,7 @@ Item {
 
         shown: root.opened
         fadeDuration: 160
+        color: root.seeThrough ? Qt.rgba(0, 0, 0, 0.1) : AppTheme.overlay
         onClicked: root.close()
     }
 
@@ -272,7 +276,9 @@ Item {
                          + root.contentBottomMargin)
         topLeftRadius: AppTheme.radiusSheet
         topRightRadius: AppTheme.radiusSheet
-        color: AppTheme.surface
+        color: root.seeThrough
+               ? Qt.rgba(AppTheme.surface.r, AppTheme.surface.g, AppTheme.surface.b, 0.8)
+               : AppTheme.surface
 
         transform: Translate {
             y: _panel.height * _panel.slide

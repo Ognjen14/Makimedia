@@ -22,12 +22,78 @@ BottomSheet {
 
     readonly property bool onPc: Streaming.connected
 
+    property string shownLanguage: ""
+
+    readonly property var languages: {
+        const seen = []
+        const results = SubtitleSearch.results
+        for (let i = 0; i < results.length; ++i) {
+            const language = String(results[i].language).toLowerCase()
+            if (seen.indexOf(language) < 0)
+                seen.push(language)
+        }
+        return seen
+    }
+
+    readonly property bool filtering: languages.length > 1
+
+    readonly property int shownCount: {
+        if (root.shownLanguage.length === 0)
+            return SubtitleSearch.results.length
+        let count = 0
+        const results = SubtitleSearch.results
+        for (let i = 0; i < results.length; ++i) {
+            if (root.shows(results[i]))
+                ++count
+        }
+        return count
+    }
+
+    onLanguagesChanged: {
+        if (root.shownLanguage.length > 0
+                && root.languages.indexOf(root.shownLanguage) < 0)
+            root.shownLanguage = ""
+    }
+
+    function shows(result) {
+        return root.shownLanguage.length === 0
+               || String(result.language).toLowerCase() === root.shownLanguage
+    }
+
+    function firstShownRow() {
+        for (let i = 0; i < _results.count; ++i) {
+            const row = _results.itemAt(i)
+            if (row && row.visible && row.enabled)
+                return row
+        }
+        return null
+    }
+
+    function focusFirstResult() {
+        const row = root.firstShownRow()
+        if (!row)
+            return false
+        row.forceActiveFocus(Qt.TabFocusReason)
+        root.showFocused(row)
+        return true
+    }
+
+    function focusShownChip() {
+        const chip = _chips.chipFor(root.shownLanguage)
+        if (!chip)
+            return false
+        chip.forceActiveFocus(Qt.TabFocusReason)
+        root.showFocused(chip)
+        return true
+    }
+
     title: qsTr("Find subtitles")
 
     function start() {
         root.savedName = ""
         root.savedPath = ""
         root.problem = ""
+        root.shownLanguage = ""
         root.open()
         if (root.onPc)
             SubtitleSearch.findOnPc(Streaming.subtitleSearchUrl(root.handle),
@@ -44,7 +110,7 @@ BottomSheet {
 
         interval: 250
         onTriggered: {
-            if (root.opened && !root.focusContent())
+            if (root.opened && !root.focusFirstResult() && !root.focusContent())
                 root.forceActiveFocus(Qt.TabFocusReason)
         }
     }
@@ -192,23 +258,60 @@ BottomSheet {
             wrapMode: Text.Wrap
         }
 
+        Flow {
+            id: _chips
+
+            function chipFor(language) {
+                for (let i = 0; i < _chipRepeater.count; ++i) {
+                    const chip = _chipRepeater.itemAt(i)
+                    if (chip && chip.language === language)
+                        return chip
+                }
+                return null
+            }
+
+            width: parent.width
+            visible: root.filtering
+            spacing: S.AppTheme.spacing6
+
+            Repeater {
+                id: _chipRepeater
+
+                model: root.filtering ? [""].concat(root.languages) : []
+
+                delegate: Chip {
+                    required property string modelData
+
+                    readonly property string language: modelData
+
+                    text: modelData.length > 0 ? modelData.toUpperCase() : qsTr("All")
+                    selected: root.shownLanguage === modelData
+                    onClicked: root.shownLanguage = modelData
+                }
+            }
+        }
+
         SectionLabel {
             width: parent.width
             visible: SubtitleSearch.results.length > 0
             topPadding: root.savedName.length > 0 ? S.AppTheme.spacing8 : 0
             text: root.savedName.length > 0 ? qsTr("Add another")
-                                            : qsTr("%n found", "",
-                                                   SubtitleSearch.results.length)
+                                            : qsTr("%n found", "", root.shownCount)
         }
 
         Repeater {
+            id: _results
+
             model: SubtitleSearch.results
 
             delegate: SheetRow {
+                id: _row
+
                 required property var modelData
                 required property int index
 
                 width: parent.width
+                visible: root.shows(modelData)
                 showRadio: false
                 enabled: !SubtitleSearch.busy
                 title: modelData.language.toUpperCase() + "  ·  "
@@ -217,12 +320,18 @@ BottomSheet {
                 subtitle: {
                     const bits = []
                     if (modelData.hashMatched)
-                        bits.push(qsTr("matches this exact file"))
+                        bits.push(qsTr("reported to fit this file"))
                     if (modelData.downloads > 0)
                         bits.push(qsTr("%1 downloads").arg(modelData.downloads))
                     return bits.join("  ·  ")
                 }
                 onClicked: SubtitleSearch.fetch(index)
+
+                Keys.onUpPressed: (event) => {
+                    event.accepted = root.filtering
+                                     && root.firstShownRow() === _row
+                                     && root.focusShownChip()
+                }
             }
         }
 

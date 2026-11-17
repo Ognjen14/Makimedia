@@ -21,6 +21,18 @@ Item {
     property string fileHandle: ""
     property string failure: ""
 
+    readonly property real sheetCover: Math.max(_audioSheet.coveredHeight,
+                                                _findSubtitles.coveredHeight,
+                                                _subtitleSheet.coveredHeight,
+                                                _subtitleStyleSheet.coveredHeight,
+                                                _delaySheet.coveredHeight,
+                                                _focusSheet.coveredHeight)
+
+    onSheetCoverChanged: MpvPlayer.setSubtitleCover(
+                             root.height > 0 ? 100 * root.sheetCover / root.height : 0)
+
+    Component.onDestruction: MpvPlayer.setSubtitleCover(0)
+
     property var nextEpisode: ({})
     readonly property bool hasNextEpisode:
         (nextEpisode.handle || "").length > 0
@@ -93,6 +105,7 @@ Item {
     readonly property bool miniPlayer: System.inMiniPlayer
 
     readonly property bool chromeVisible: controlsVisible && !miniPlayer
+                                          && sheetCover <= 0
 
     property bool controlsVisible: true
     property bool locked: false
@@ -872,6 +885,7 @@ Item {
         scalePercent: AppSettings.subtitleScalePercent
         edgeStyle: AppSettings.subtitleEdgeStyle
         position: AppSettings.subtitlePosition
+        cover: root.sheetCover
         textColor: AppSettings.subtitleColor
         bold: AppSettings.subtitleBold
     }
@@ -1372,7 +1386,7 @@ Item {
         width: _nextEpisodeRow.implicitWidth + 2 * S.AppTheme.spacing20
         height: S.AppTheme.controlHeightMedium
         opacity: root.nextEpisodePrompt && !root.locked && !root.miniPlayer
-                 ? 1 : 0
+                 && root.sheetCover <= 0 ? 1 : 0
         visible: opacity > 0.01
 
         Behavior on opacity {
@@ -1558,6 +1572,9 @@ Item {
     Ctrl.BottomSheet {
         id: _audioSheet
 
+        seeThrough: true
+        maxHeightFraction: 0.62
+
         restoresFocus: false
 
         z: 50
@@ -1598,6 +1615,9 @@ Item {
     Ctrl.FindSubtitlesSheet {
         id: _findSubtitles
 
+        seeThrough: true
+        maxHeightFraction: 0.62
+
         z: 50
 
         onLanded: (path, displayName) => {
@@ -1607,6 +1627,9 @@ Item {
 
     Ctrl.BottomSheet {
         id: _subtitleSheet
+
+        seeThrough: true
+        maxHeightFraction: 0.62
 
         restoresFocus: false
 
@@ -1622,10 +1645,7 @@ Item {
                 title: qsTr("Off")
                 selected: MpvPlayer.subtitleTrackId <= 0
 
-                onClicked: {
-                    MpvPlayer.subtitleTrackId = 0
-                    _subtitleSheet.close()
-                }
+                onClicked: MpvPlayer.subtitleTrackId = 0
             }
 
             Repeater {
@@ -1646,10 +1666,7 @@ Item {
                     enabled: !unavailable
                     opacity: unavailable ? 0.5 : 1
 
-                    onClicked: {
-                        MpvPlayer.subtitleTrackId = model.id
-                        _subtitleSheet.close()
-                    }
+                    onClicked: MpvPlayer.subtitleTrackId = model.id
                 }
             }
 
@@ -1722,6 +1739,9 @@ Item {
 
     Ctrl.BottomSheet {
         id: _subtitleStyleSheet
+
+        seeThrough: true
+        maxHeightFraction: 0.62
 
         restoresFocus: false
 
@@ -1819,6 +1839,9 @@ Item {
 
     Ctrl.BottomSheet {
         id: _delaySheet
+
+        seeThrough: true
+        maxHeightFraction: 0.62
 
         restoresFocus: false
 
@@ -1936,6 +1959,9 @@ Item {
 
     Ctrl.BottomSheet {
         id: _focusSheet
+
+        seeThrough: true
+        maxHeightFraction: 0.62
 
         property string focusState: ""
 

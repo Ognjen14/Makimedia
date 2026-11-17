@@ -162,6 +162,7 @@ public:
     Q_INVOKABLE void addSubtitleFile(const QString &path,
                                      const QString &title = QString());
     Q_INVOKABLE void applySubtitleStyle(const QVariantMap &options);
+    Q_INVOKABLE void setSubtitleCover(double percent);
     Q_INVOKABLE void setForceHardwareDecoding(bool force);
     Q_INVOKABLE void cycleAudioTrack();
     Q_INVOKABLE void cycleSubtitleTrack();
@@ -221,6 +222,7 @@ private:
     void addPreloadedSubtitles();
     void pickPreloadedSubtitle();
     void applyCacheProfile(const QString &path);
+    void applySubtitlePosition();
     void setPropertyFallback(const QString &name,
                              const QString &legacyName,
                              const QVariant &value);
@@ -323,6 +325,8 @@ private:
     std::atomic<bool> m_holdsAudioFocus{false};
     std::atomic<bool> m_pausedByFocusLoss{false};
     bool m_subtitlesOnByDefault = true;
+    int m_subPosBase = 100;
+    double m_subtitleCover = 0.0;
     std::atomic<bool> m_ducked{false};
     std::atomic<int> m_volumeBeforeDuck{100};
 };

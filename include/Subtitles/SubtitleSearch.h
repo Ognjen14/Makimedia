@@ -68,6 +68,7 @@ private:
     void runSearch();
     void askQuota();
     void takeCandidates(const QByteArray &body);
+    void sortCandidates();
     void requestLink(const Candidate &candidate);
     void collect(const QString &url, const Candidate &candidate);
     void store(const QByteArray &bytes, const Candidate &candidate);
