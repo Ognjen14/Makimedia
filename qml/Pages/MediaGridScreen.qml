@@ -306,6 +306,17 @@ Item {
             }
         }
 
+        Keys.onDownPressed: (event) => {
+            const last = _grid.count - 1
+            if (_grid.currentIndex + root.columnCount > last
+                    && Math.floor(_grid.currentIndex / root.columnCount) < Math.floor(last / root.columnCount)) {
+                _grid.currentIndex = last
+                event.accepted = true
+            } else {
+                event.accepted = false
+            }
+        }
+
         Keys.onPressed: (event) => {
             if (S.AppTheme.isActivateKey(event.key)) {
                 if (_grid.currentItem)
