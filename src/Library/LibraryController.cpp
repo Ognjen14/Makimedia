@@ -1984,6 +1984,20 @@ void LibraryController::recordPlayback(const QString &handle,
     }
 }
 
+void LibraryController::refreshPlayedViews(const QString &handle)
+{
+    const LibraryFile file = m_fileRepository.byHandle(handle);
+    if (!file.isValid()) {
+        return;
+    }
+
+    QElapsedTimer took;
+    took.start();
+    refreshPlayedFiles({file.id});
+    emit fileCountChanged();
+    MM_LOG_D() << "views refreshed for played file" << file.id << "in" << took.elapsed() << "ms";
+}
+
 double LibraryController::resumePositionFor(const QString &handle)
 {
     const LibraryFile file = m_fileRepository.byHandle(handle);

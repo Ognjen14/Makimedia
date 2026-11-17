@@ -314,6 +314,7 @@ public:
                                     double positionSeconds,
                                     double durationSeconds,
                                     bool refreshViews = true);
+    Q_INVOKABLE void refreshPlayedViews(const QString &handle);
     Q_INVOKABLE double resumePositionFor(const QString &handle);
     Q_INVOKABLE void recordProbe(const QString &handle,
                                  double durationSeconds,

@@ -173,7 +173,7 @@ ApplicationWindow {
     }
 
     function _goToTray() {
-        if (_stack.depth > 1)
+        if (_stack.depth > 1 || _playerPushPending)
             closePlayer()
 
         _saveGeometry()
@@ -270,6 +270,11 @@ ApplicationWindow {
             System.leaveMiniPlayer(window)
             window.minimumWidth = window._normalMinimumWidth
             window.minimumHeight = window._normalMinimumHeight
+            return true
+        }
+
+        if (_playerPushPending) {
+            closePlayer()
             return true
         }
 
@@ -513,6 +518,22 @@ ApplicationWindow {
         popExit: null
     }
 
+    Rectangle {
+        anchors.fill: parent
+        z: 50
+        visible: window._playerPushPending
+        color: "black"
+
+        MouseArea {
+            anchors.fill: parent
+        }
+
+        BusyIndicator {
+            anchors.centerIn: parent
+            running: parent.visible
+        }
+    }
+
     C.SetupWindow {
         id: _setupWindow
 
@@ -707,10 +728,82 @@ ApplicationWindow {
         MpvPlayer.setSubtitlesForNextOpen(url, [])
         MpvPlayer.openPath(url)
 
-        if (_stack.depth <= 1) {
-            System.setImmersiveMode(true)
-            _stack.push(_playerPage)
+        if (_stack.depth <= 1)
+            _beginPlayerPage(Date.now())
+    }
+
+    property bool _playerPushPending: false
+    property bool _settlingAfterClose: false
+    property string _viewsToRefresh: ""
+    property double _playStartedMs: 0
+    property int _framesSeen: 0
+
+    function _waitForFrames() {
+        _framesSeen = 0
+        _frameFallback.restart()
+    }
+
+    function _onFramesShown() {
+        _frameFallback.stop()
+        if (_playerPushPending)
+            _pushPlayerPage()
+        else
+            _settleAfterClose(true)
+    }
+
+    function _beginPlayerPage(started) {
+        if (_playerPushPending)
+            return
+        _settleAfterClose(false)
+        _playStartedMs = started
+        _playerPushPending = true
+        _waitForFrames()
+    }
+
+    function _pushPlayerPage() {
+        if (!_playerPushPending)
+            return
+        _playerPushPending = false
+        if (MpvPlayer.playerStuck || _stack.depth > 1)
+            return
+        System.setImmersiveMode(true)
+        _stack.push(_playerPage)
+        Library.noteUi("play: player page pushed after "
+                       + (Date.now() - _playStartedMs) + " ms")
+    }
+
+    function _settleAfterClose(claimFocus) {
+        if (!_settlingAfterClose)
+            return
+        _settlingAfterClose = false
+        if (_viewsToRefresh.length > 0) {
+            const handle = _viewsToRefresh
+            _viewsToRefresh = ""
+            Library.refreshPlayedViews(handle)
         }
+        if (!claimFocus)
+            return
+        const shell = _stack.get(0)
+        if (shell && shell.claimFocus)
+            shell.claimFocus()
+    }
+
+    Connections {
+        target: window
+        enabled: window._playerPushPending || window._settlingAfterClose
+
+        function onFrameSwapped() {
+            window._framesSeen++
+            if (window._framesSeen >= 2)
+                window._onFramesShown()
+        }
+    }
+
+    Timer {
+        id: _frameFallback
+
+        interval: 250
+        onTriggered: window._onFramesShown()
     }
 
     function openPlayer(handle, fromStart) {
@@ -750,12 +843,8 @@ ApplicationWindow {
         MpvPlayer.openPath(url)
         Library.noteUi("play: open posted after " + (Date.now() - started) + " ms")
 
-        if (_stack.depth <= 1) {
-            System.setImmersiveMode(true)
-            _stack.push(_playerPage)
-            Library.noteUi("play: player page pushed after "
-                           + (Date.now() - started) + " ms")
-        }
+        if (_stack.depth <= 1)
+            _beginPlayerPage(started)
     }
 
     function toggleFullScreen() {
@@ -776,8 +865,10 @@ ApplicationWindow {
             window.minimumHeight = window._normalMinimumHeight
         }
 
+        _playerPushPending = false
+        const playedHandle = (stuck !== true && MpvPlayer.duration > 0) ? _openHandle : ""
         if (stuck !== true) {
-            _savePlayback()
+            _savePlayback(false)
             _noteFinished()
         }
         _openHandle = ""
@@ -789,9 +880,9 @@ ApplicationWindow {
         if (_stack.depth > 1)
             _stack.pop()
 
-        const shell = _stack.get(0)
-        if (shell && shell.claimFocus)
-            Qt.callLater(shell.claimFocus)
+        _viewsToRefresh = playedHandle
+        _settlingAfterClose = true
+        _waitForFrames()
 
         if (Streaming.lostServerName.length > 0)
             Streaming.acknowledgeLost()
@@ -828,7 +919,7 @@ ApplicationWindow {
         function onPlayerStuckChanged() {
             if (!MpvPlayer.playerStuck)
                 return
-            if (_stack.depth > 1)
+            if (_stack.depth > 1 || _playerPushPending)
                 window.closePlayer(true)
             _stuckDialog.open()
         }
