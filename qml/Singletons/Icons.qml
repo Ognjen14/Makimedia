@@ -46,6 +46,7 @@ QtObject {
     readonly property url appearance: "qrc:/assets/icons/appearance.svg"
     readonly property url plus: "qrc:/assets/icons/plus.svg"
     readonly property url volume: "qrc:/assets/icons/volume.svg"
+    readonly property url volumeOff: "qrc:/assets/icons/volume-off.svg"
 
     function byName(name) {
         const key = name.replace(/-([a-z])/g, function (m, c) { return c.toUpperCase() })

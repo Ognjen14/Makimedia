@@ -958,6 +958,18 @@ Item {
 
             Ctrl.SettingsRow {
                 width: parent.width
+                visible: S.HoverPreview.available
+                height: visible ? implicitHeight : 0
+                iconSource: S.Icons.play
+                trailing: Ctrl.SettingsRow.Switch
+                title: qsTr("Play previews")
+                subtitle: qsTr("Rest the mouse on a poster to play a short scene from it")
+                switchChecked: AppSettings.hoverPreviews
+                onSwitchToggled: (checked) => AppSettings.hoverPreviews = checked
+            }
+
+            Ctrl.SettingsRow {
+                width: parent.width
                 visible: System.supportsTrayIcon
                 height: visible ? implicitHeight : 0
                 iconSource: S.Icons.tray

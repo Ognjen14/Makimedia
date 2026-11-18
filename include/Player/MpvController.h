@@ -154,6 +154,8 @@ public:
     Q_INVOKABLE void openPath(const QString &path);
     Q_INVOKABLE void setSubtitlesForNextOpen(const QString &path,
                                              const QVariantList &subtitles);
+    Q_INVOKABLE void setStartForNextOpen(double seconds);
+    void configureForPreview();
     Q_INVOKABLE void stop();
     Q_INVOKABLE void togglePause();
     Q_INVOKABLE void pauseForBackground();
@@ -325,6 +327,9 @@ private:
     std::atomic<bool> m_holdsAudioFocus{false};
     std::atomic<bool> m_pausedByFocusLoss{false};
     bool m_subtitlesOnByDefault = true;
+    double m_nextStart = 0.0;
+    bool m_startApplied = false;
+    bool m_previewMode = false;
     int m_subPosBase = 100;
     double m_subtitleCover = 0.0;
     std::atomic<bool> m_ducked{false};

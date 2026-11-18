@@ -271,6 +271,7 @@ public:
 
     Q_INVOKABLE void noteUi(const QString &what) const;
     Q_INVOKABLE QVariantMap surpriseMe(qint64 notThisOne) const;
+    Q_INVOKABLE QVariantMap previewFor(qint64 mediaId) const;
     ShowEpisodeModel *showEpisodes() const;
     QString browsePath() const;
     QString browseName() const;

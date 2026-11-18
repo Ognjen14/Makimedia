@@ -14,6 +14,7 @@ Item {
     property bool watched: false
     property real progress: 0
     property bool highlighted: false
+    property var previewId: 0
 
     readonly property int stackStep: 4
     readonly property int tileWidth: width - 2 * stackStep
@@ -57,6 +58,7 @@ Item {
         meta: root.meta
         progress: root.progress
         highlighted: root.highlighted
+        previewId: root.previewId
         badge: root.newCount > 0 ? MediaTile.Accent : MediaTile.None
         badgeText: root.newCount > 0 ? qsTr("%n new", "", root.newCount) : ""
         watched: root.watched && root.newCount === 0

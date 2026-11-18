@@ -17,6 +17,8 @@ class AppSettings : public QObject
     Q_PROPERTY(double holdToSpeedMultiplier READ holdToSpeedMultiplier WRITE setHoldToSpeedMultiplier NOTIFY holdToSpeedMultiplierChanged FINAL)
     Q_PROPERTY(bool keepScreenOn READ keepScreenOn WRITE setKeepScreenOn NOTIFY keepScreenOnChanged FINAL)
     Q_PROPERTY(bool dimWatched READ dimWatched WRITE setDimWatched NOTIFY dimWatchedChanged FINAL)
+    Q_PROPERTY(bool previewSound READ previewSound WRITE setPreviewSound NOTIFY previewSoundChanged FINAL)
+    Q_PROPERTY(bool hoverPreviews READ hoverPreviews WRITE setHoverPreviews NOTIFY hoverPreviewsChanged FINAL)
     Q_PROPERTY(bool autoPlayNextEpisode READ autoPlayNextEpisode WRITE setAutoPlayNextEpisode NOTIFY autoPlayNextEpisodeChanged FINAL)
     Q_PROPERTY(bool closeToTray READ closeToTray WRITE setCloseToTray NOTIFY closeToTrayChanged FINAL)
     Q_PROPERTY(bool streamOnLaunch READ streamOnLaunch WRITE setStreamOnLaunch NOTIFY streamOnLaunchChanged FINAL)
@@ -75,6 +77,10 @@ public:
     bool keepScreenOn() const;
     bool dimWatched() const;
     void setDimWatched(bool value);
+    bool previewSound() const;
+    void setPreviewSound(bool value);
+    bool hoverPreviews() const;
+    void setHoverPreviews(bool value);
     void setKeepScreenOn(bool value);
 
     bool autoPlayNextEpisode() const;
@@ -171,6 +177,8 @@ signals:
     void holdToSpeedMultiplierChanged();
     void keepScreenOnChanged();
     void dimWatchedChanged();
+    void previewSoundChanged();
+    void hoverPreviewsChanged();
     void autoPlayNextEpisodeChanged();
     void closeToTrayChanged();
     void streamOnLaunchChanged();

@@ -113,6 +113,34 @@ void AppSettings::setDimWatched(bool value)
     emit dimWatchedChanged();
 }
 
+bool AppSettings::previewSound() const
+{
+    return m_settings.value(QStringLiteral("previewSound"), false).toBool();
+}
+
+void AppSettings::setPreviewSound(bool value)
+{
+    if (previewSound() == value) {
+        return;
+    }
+    m_settings.setValue(QStringLiteral("previewSound"), value);
+    emit previewSoundChanged();
+}
+
+bool AppSettings::hoverPreviews() const
+{
+    return m_settings.value(QStringLiteral("hoverPreviews"), true).toBool();
+}
+
+void AppSettings::setHoverPreviews(bool value)
+{
+    if (hoverPreviews() == value) {
+        return;
+    }
+    m_settings.setValue(QStringLiteral("hoverPreviews"), value);
+    emit hoverPreviewsChanged();
+}
+
 bool AppSettings::keepScreenOn() const
 {
     return m_settings.value(QStringLiteral("keepScreenOn"), true).toBool();

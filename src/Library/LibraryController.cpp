@@ -8,6 +8,7 @@
 #include "Library/CollectionShelf.h"
 #include "Library/GenreShelf.h"
 #include "Library/SimilarTitles.h"
+#include "Library/PreviewPick.h"
 #include "Library/FolderListModel.h"
 #include "Library/MediaHandle.h"
 #include "Library/MediaListModel.h"
@@ -2522,6 +2523,80 @@ QVariantMap LibraryController::surpriseMe(qint64 notThisOne) const
     } else {
         result.insert(QStringLiteral("playHandle"), pick.firstFileHandle);
     }
+    return result;
+}
+
+QVariantMap LibraryController::previewFor(qint64 mediaId) const
+{
+    QVariantMap result;
+    IMediaSource *source = m_platform.mediaSource();
+    if (!source || mediaId <= 0) {
+        return result;
+    }
+
+    const QList<MediaRecord> listed = m_mediaRepository.listedByIds({mediaId});
+    if (listed.isEmpty()) {
+        return result;
+    }
+    const MediaRecord title = listed.first();
+    QRandomGenerator *random = QRandomGenerator::global();
+
+    QString handle;
+    double duration = 0.0;
+    QString episodeLabel;
+
+    if (title.kind == QLatin1String("tv")) {
+        const QList<EpisodeRecord> episodes = m_mediaRepository.episodesFor(mediaId);
+        const int at = PreviewPick::episodeIndex(episodes, random->generateDouble());
+        if (at < 0) {
+            MM_LOG_I() << "preview of" << title.title << "skipped, no playable episode";
+            return result;
+        }
+        const EpisodeRecord &episode = episodes.at(at);
+        handle = episode.fileHandle;
+        duration = episode.durationSeconds;
+        if (duration <= 0.0) {
+            duration = m_fileRepository.byHandle(handle).durationSeconds;
+        }
+        if (duration <= 0.0) {
+            duration = episode.runtimeMinutes * 60.0;
+        }
+        episodeLabel = QStringLiteral("S%1 E%2").arg(episode.season).arg(episode.episode);
+    } else {
+        const QList<LibraryFile> files =
+            m_fileRepository.byIds(m_mediaRepository.fileIdsFor(mediaId));
+        for (const LibraryFile &file : files) {
+            if (!file.missing) {
+                handle = file.handle;
+                duration = file.durationSeconds;
+                break;
+            }
+        }
+        if (duration <= 0.0) {
+            duration = title.runtimeMinutes * 60.0;
+        }
+    }
+
+    if (handle.isEmpty() || !source->exists(handle)) {
+        MM_LOG_I() << "preview of" << title.title << "skipped, no file to play";
+        return result;
+    }
+    const QString url = source->mpvUrl(handle);
+    if (url.isEmpty()) {
+        return result;
+    }
+
+    const double start = PreviewPick::startSeconds(duration, random->generateDouble());
+    MM_LOG_I() << "preview of" << title.title << episodeLabel << "from" << int(start)
+               << "s of" << int(duration) << "s";
+
+    result.insert(QStringLiteral("url"), url);
+    result.insert(QStringLiteral("start"), start);
+    result.insert(QStringLiteral("title"), title.title);
+    result.insert(QStringLiteral("year"), title.year);
+    result.insert(QStringLiteral("kind"), title.kind);
+    result.insert(QStringLiteral("episode"), episodeLabel);
+    result.insert(QStringLiteral("backdropPath"), title.backdropPath);
     return result;
 }
 

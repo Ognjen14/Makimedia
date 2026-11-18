@@ -1544,8 +1544,37 @@ void MpvController::openPath(const QString &path)
     m_subtitlesPath.clear();
     m_pendingSubtitles.clear();
 
+    if (m_nextStart > 0.0 || m_startApplied) {
+        setPropertyVariant(QStringLiteral("start"),
+                           m_nextStart > 0.0 ? QString::number(m_nextStart, 'f', 1)
+                                             : QStringLiteral("none"));
+        m_startApplied = m_nextStart > 0.0;
+    }
+    m_nextStart = 0.0;
+
     applyCacheProfile(path);
+    if (m_previewMode) {
+        setPropertyVariant(QStringLiteral("demuxer-max-bytes"), QStringLiteral("32MiB"));
+        setPropertyVariant(QStringLiteral("demuxer-readahead-secs"), 5);
+    }
     command({QStringLiteral("loadfile"), path});
+}
+
+void MpvController::setStartForNextOpen(double seconds)
+{
+    m_nextStart = qMax(0.0, seconds);
+}
+
+void MpvController::configureForPreview()
+{
+    if (!m_ready) {
+        return;
+    }
+    m_previewMode = true;
+    m_subtitlesOnByDefault = false;
+    setMuted(true);
+    setPropertyVariant(QStringLiteral("hr-seek"), QStringLiteral("no"));
+    MM_LOG_I() << "player configured for hover previews: muted, no subtitles, keyframe seeks";
 }
 
 void MpvController::applyCacheProfile(const QString &path)

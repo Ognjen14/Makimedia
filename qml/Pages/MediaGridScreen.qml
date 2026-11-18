@@ -364,6 +364,7 @@ Item {
                 meta: _cell.summary
                 progress: _cell.watchProgress
                 watched: _cell.watched
+                previewId: _cell.mediaId
 
                 onClicked: _cell.activate()
             }

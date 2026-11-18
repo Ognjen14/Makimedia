@@ -37,6 +37,7 @@ add_library(makimedia_core STATIC
     src/Library/BrowseOptions.cpp
     src/Library/GenreShelf.cpp
     src/Library/SimilarTitles.cpp
+    src/Library/PreviewPick.cpp
     src/Library/CollectionShelf.cpp
     src/Library/UniverseCatalog.cpp
     src/Library/CollectionPage.cpp
@@ -88,6 +89,7 @@ add_library(makimedia_core STATIC
     include/Library/BrowseOptions.h
     include/Library/GenreShelf.h
     include/Library/SimilarTitles.h
+    include/Library/PreviewPick.h
     include/Library/CollectionShelf.h
     include/Library/UniverseCatalog.h
     include/Library/CollectionPage.h
@@ -366,6 +368,8 @@ set_source_files_properties(qml/Singletons/Format.qml
     PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(qml/Singletons/SubtitleColours.qml
     PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(qml/Singletons/HoverPreview.qml
+    PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_qml_module(appmakimedia
     URI makimedia
@@ -376,6 +380,7 @@ qt_add_qml_module(appmakimedia
         qml/Singletons/AppTheme.qml
         qml/Singletons/DevTools.qml
         qml/Singletons/Format.qml
+        qml/Singletons/HoverPreview.qml
         qml/Singletons/Icons.qml
         qml/Singletons/PopupRegistry.qml
         qml/Singletons/SubtitleColours.qml
@@ -393,6 +398,7 @@ qt_add_qml_module(appmakimedia
         qml/Controls/ChipGroup.qml
         qml/Controls/ColourSwatch.qml
         qml/Controls/Divider.qml
+        qml/Controls/PreviewCard.qml
         qml/Controls/FontSizePicker.qml
         qml/Controls/EmptyState.qml
         qml/Controls/FocusRing.qml
@@ -549,6 +555,7 @@ qt_add_resources(appmakimedia "ASSETS"
     assets/icons/tray.svg
     assets/icons/tv-shows.svg
     assets/icons/volume.svg
+    assets/icons/volume-off.svg
 )
 
 set_target_properties(appmakimedia PROPERTIES

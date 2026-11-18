@@ -137,6 +137,11 @@ int main(int argc, char *argv[])
     mpvController.setTransportControls(platformServices.transportControls());
     qmlRegisterSingletonInstance("com.topicdev.makimedia", 1, 0, "MpvPlayer", &mpvController);
 
+    MpvController previewController;
+    previewController.configureForPreview();
+    qmlRegisterSingletonInstance("com.topicdev.makimedia", 1, 0, "PreviewPlayer",
+                                 &previewController);
+
     qmlRegisterUncreatableType<FolderListModel>(
         "com.topicdev.makimedia", 1, 0, "FolderListModel",
         QStringLiteral("FolderListModel comes from LibraryController"));

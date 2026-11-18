@@ -92,6 +92,16 @@ RemoteButton {
 
     signal contextRequested()
 
+    property var previewId: 0
+    readonly property Item artItem: _art
+
+    onHoveredChanged: {
+        if (root.previewId)
+            HoverPreview.tileHovered(root, root.previewId, root.hovered)
+    }
+    onPreviewIdChanged: HoverPreview.tileGone(root)
+    Component.onDestruction: HoverPreview.tileGone(root)
+
     onPressAndHold: root.contextRequested()
 
     TapHandler {

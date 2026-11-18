@@ -665,6 +665,7 @@ Item {
                             return _recent.year > 0 ? String(_recent.year) : ""
                         }
                         newCount: _recent.isShow ? _recent.newCount : 0
+                        previewId: _recent.mediaId
                         watched: _recent.watched
                         progress: _recent.watchProgress
                         highlighted: _recent.ListView.isCurrentItem && _recentRow.activeFocus
@@ -786,6 +787,7 @@ Item {
                                 meta: _title.summary
                                 progress: _title.watchProgress
                                 watched: _title.watched
+                                previewId: _title.mediaId
                                 highlighted: _title.ListView.isCurrentItem
                                              && _genreList.activeFocus
 

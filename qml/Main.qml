@@ -518,6 +518,19 @@ ApplicationWindow {
         popExit: null
     }
 
+    C.PreviewCard {
+        anchors.fill: parent
+        z: 40
+    }
+
+    Binding {
+        target: S.HoverPreview
+        property: "blocked"
+        value: _stack.depth > 1 || window._playerPushPending || Streaming.serving
+               || S.PopupRegistry.hasOpen || _setupWindow.shown
+               || Qt.application.state !== Qt.ApplicationActive
+    }
+
     Rectangle {
         anchors.fill: parent
         z: 50
@@ -818,6 +831,7 @@ ApplicationWindow {
 
         const started = Date.now()
         Library.noteUi("play pressed")
+        S.HoverPreview.close()
 
         const url = Library.mpvUrlFor(handle)
         if (url.length === 0)
