@@ -102,7 +102,12 @@ RemoteButton {
     onPreviewIdChanged: HoverPreview.tileGone(root)
     Component.onDestruction: HoverPreview.tileGone(root)
 
-    onPressAndHold: root.contextRequested()
+    onPressAndHold: {
+        if (root.previewId && HoverPreview.touchTriggers && HoverPreview.supported)
+            HoverPreview.openNow(root, root.previewId)
+        else
+            root.contextRequested()
+    }
 
     TapHandler {
         acceptedDevices: PointerDevice.Mouse

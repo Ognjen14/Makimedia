@@ -252,6 +252,11 @@ ApplicationWindow {
     function _routeBack() {
         const now = Date.now()
 
+        if (S.HoverPreview.showing) {
+            S.HoverPreview.close()
+            return
+        }
+
         if (_setupWindow.shown) {
             if (Setup.finished)
                 Setup.acknowledge()
@@ -553,6 +558,38 @@ ApplicationWindow {
         anchors.fill: parent
         z: 100
         shown: Setup.shown && _stack.depth <= 1
+    }
+
+    C.Snackbar {
+        id: _previewTip
+
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: S.AppTheme.spacing24
+        width: Math.min(parent.width - 2 * S.AppTheme.spacing16, 420)
+        z: 90
+        dismissAfterMs: 6000
+    }
+
+    Timer {
+        id: _previewTipTimer
+
+        property bool done: false
+
+        interval: 4000
+        running: !done && S.HoverPreview.supported
+                 && AppSettings.previewTipCount < S.HoverPreview.tipLimit
+                 && Library.movies.count + Library.shows.count > 0
+        onTriggered: {
+            done = true
+            if (_stack.depth > 1 || S.HoverPreview.blocked || S.HoverPreview.showing
+                    || AppSettings.previewTipCount >= S.HoverPreview.tipLimit)
+                return
+            AppSettings.previewTipCount += 1
+            _previewTip.show(S.HoverPreview.touchTriggers
+                             ? qsTr("Tip: press and hold a poster to watch a short preview")
+                             : qsTr("Tip: rest the mouse on a poster to watch a short preview"))
+        }
     }
 
     C.Snackbar {

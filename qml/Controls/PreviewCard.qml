@@ -124,6 +124,15 @@ Item {
         }
     }
 
+    MouseArea {
+        anchors.fill: parent
+        enabled: root.open && HoverPreview.touchOpened
+        onPressed: (mouse) => {
+            mouse.accepted = false
+            HoverPreview.close()
+        }
+    }
+
     Item {
         id: _card
 
@@ -148,6 +157,22 @@ Item {
 
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
         Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+
+        MouseArea {
+            anchors.fill: parent
+            enabled: root.open
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: (mouse) => {
+                const tile = HoverPreview.anchor
+                HoverPreview.close()
+                if (!tile)
+                    return
+                if (mouse.button === Qt.RightButton)
+                    tile.contextRequested()
+                else
+                    tile.clicked()
+            }
+        }
 
         Rectangle {
             anchors.fill: parent
@@ -183,8 +208,26 @@ Item {
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     cache: true
-                    source: root.info.backdropPath
-                            ? Metadata.backdropUrl(root.info.backdropPath, 780) : ""
+                    visible: _backdrop.status !== Image.Ready
+                    source: {
+                        void Metadata.artworkRevision
+                        return root.info.posterPath
+                               ? Metadata.posterUrl(root.info.posterPath, 342) : ""
+                    }
+                }
+
+                Image {
+                    id: _backdrop
+
+                    anchors.fill: parent
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    cache: true
+                    source: {
+                        void Metadata.artworkRevision
+                        return root.info.backdropPath
+                               ? Metadata.backdropUrl(root.info.backdropPath, 780) : ""
+                    }
                 }
 
                 Loader {
@@ -258,30 +301,6 @@ Item {
         HoverHandler {
             enabled: root.open
             onHoveredChanged: HoverPreview.setCardHovered(hovered)
-        }
-
-        TapHandler {
-            enabled: root.open
-            acceptedButtons: Qt.LeftButton
-            onTapped: {
-                if (_sound.hovered)
-                    return
-                const tile = HoverPreview.anchor
-                HoverPreview.close()
-                if (tile)
-                    tile.clicked()
-            }
-        }
-
-        TapHandler {
-            enabled: root.open
-            acceptedButtons: Qt.RightButton
-            onTapped: {
-                const tile = HoverPreview.anchor
-                HoverPreview.close()
-                if (tile)
-                    tile.contextRequested()
-            }
         }
 
         WheelHandler {

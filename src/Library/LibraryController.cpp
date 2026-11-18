@@ -2597,6 +2597,7 @@ QVariantMap LibraryController::previewFor(qint64 mediaId) const
     result.insert(QStringLiteral("kind"), title.kind);
     result.insert(QStringLiteral("episode"), episodeLabel);
     result.insert(QStringLiteral("backdropPath"), title.backdropPath);
+    result.insert(QStringLiteral("posterPath"), title.posterPath);
     return result;
 }
 

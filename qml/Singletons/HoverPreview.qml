@@ -5,7 +5,8 @@ import com.topicdev.makimedia 1.0
 QtObject {
     id: root
 
-    readonly property bool available: Qt.platform.os === "windows"
+    readonly property bool touchTriggers: Qt.platform.os === "android" && !System.isTelevision
+    readonly property bool available: Qt.platform.os === "windows" || touchTriggers
     readonly property bool supported: available && AppSettings.hoverPreviews
     property bool blocked: false
 
@@ -20,9 +21,10 @@ QtObject {
     property var _pendingId: 0
     property bool _anchorHovered: false
     property bool cardHovered: false
+    property bool touchOpened: false
 
     function tileHovered(tile, id, hovered) {
-        if (!supported || !tile || !id)
+        if (!supported || touchTriggers || touchOpened || !tile || !id)
             return
         if (hovered) {
             if (tile === anchor) {
@@ -53,7 +55,19 @@ QtObject {
             close()
     }
 
+    function openNow(tile, id) {
+        if (!supported || blocked || !tile || !id)
+            return
+        close()
+        touchOpened = true
+        _anchorHovered = true
+        anchor = tile
+        mediaId = id
+    }
+
     function setCardHovered(hovered) {
+        if (touchOpened)
+            return
         cardHovered = hovered
         if (!hovered)
             _grace.restart()
@@ -65,12 +79,19 @@ QtObject {
         _pending = null
         _anchorHovered = false
         cardHovered = false
+        touchOpened = false
         anchor = null
         mediaId = 0
     }
 
     onBlockedChanged: if (blocked) close()
     onSupportedChanged: if (!supported) close()
+
+    readonly property int tipLimit: 3
+    onMediaIdChanged: {
+        if (mediaId && AppSettings.previewTipCount < tipLimit)
+            AppSettings.previewTipCount = tipLimit
+    }
 
     property Timer _delay: Timer {
         interval: root.hoverDelay

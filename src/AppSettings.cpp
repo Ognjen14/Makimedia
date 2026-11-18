@@ -141,6 +141,20 @@ void AppSettings::setHoverPreviews(bool value)
     emit hoverPreviewsChanged();
 }
 
+int AppSettings::previewTipCount() const
+{
+    return m_settings.value(QStringLiteral("previewTipCount"), 0).toInt();
+}
+
+void AppSettings::setPreviewTipCount(int value)
+{
+    if (previewTipCount() == value) {
+        return;
+    }
+    m_settings.setValue(QStringLiteral("previewTipCount"), value);
+    emit previewTipCountChanged();
+}
+
 bool AppSettings::keepScreenOn() const
 {
     return m_settings.value(QStringLiteral("keepScreenOn"), true).toBool();

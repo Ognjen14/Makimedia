@@ -19,6 +19,7 @@ class AppSettings : public QObject
     Q_PROPERTY(bool dimWatched READ dimWatched WRITE setDimWatched NOTIFY dimWatchedChanged FINAL)
     Q_PROPERTY(bool previewSound READ previewSound WRITE setPreviewSound NOTIFY previewSoundChanged FINAL)
     Q_PROPERTY(bool hoverPreviews READ hoverPreviews WRITE setHoverPreviews NOTIFY hoverPreviewsChanged FINAL)
+    Q_PROPERTY(int previewTipCount READ previewTipCount WRITE setPreviewTipCount NOTIFY previewTipCountChanged FINAL)
     Q_PROPERTY(bool autoPlayNextEpisode READ autoPlayNextEpisode WRITE setAutoPlayNextEpisode NOTIFY autoPlayNextEpisodeChanged FINAL)
     Q_PROPERTY(bool closeToTray READ closeToTray WRITE setCloseToTray NOTIFY closeToTrayChanged FINAL)
     Q_PROPERTY(bool streamOnLaunch READ streamOnLaunch WRITE setStreamOnLaunch NOTIFY streamOnLaunchChanged FINAL)
@@ -81,6 +82,8 @@ public:
     void setPreviewSound(bool value);
     bool hoverPreviews() const;
     void setHoverPreviews(bool value);
+    int previewTipCount() const;
+    void setPreviewTipCount(int value);
     void setKeepScreenOn(bool value);
 
     bool autoPlayNextEpisode() const;
@@ -179,6 +182,7 @@ signals:
     void dimWatchedChanged();
     void previewSoundChanged();
     void hoverPreviewsChanged();
+    void previewTipCountChanged();
     void autoPlayNextEpisodeChanged();
     void closeToTrayChanged();
     void streamOnLaunchChanged();
