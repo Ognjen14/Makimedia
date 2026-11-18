@@ -43,17 +43,24 @@ Item {
 
     property int currentRow: 0
 
+    property var pickLists: []
     property var genreLists: []
-    readonly property var rows: [_continueRow, _recentRow, _surpriseRow].concat(genreLists)
+    readonly property var rows: [_continueRow, _recentRow].concat(pickLists, [_surpriseRow],
+                                                                  genreLists)
 
-    function collectGenreLists() {
+    function listsOf(repeater) {
         const lists = []
-        for (let i = 0; i < _genreRows.count; ++i) {
-            const row = _genreRows.itemAt(i)
+        for (let i = 0; i < repeater.count; ++i) {
+            const row = repeater.itemAt(i)
             if (row)
                 lists.push(row.list)
         }
-        genreLists = lists
+        return lists
+    }
+
+    function collectGenreLists() {
+        pickLists = listsOf(_pickRows)
+        genreLists = listsOf(_genreRows)
     }
 
     function rowUsable(i) {
@@ -187,6 +194,7 @@ Item {
     readonly property bool hasAnything: Library.continueFiles.count > 0
                                         || Library.recentTitles.count > 0
                                         || Library.genreRows.count > 0
+                                        || Library.pickRows.count > 0
 
     property bool settled: false
 
@@ -195,6 +203,7 @@ Item {
     readonly property int settlingCounts: Library.continueFiles.count
                                           + Library.recentTitles.count
                                           + Library.genreRows.count
+                                          + Library.pickRows.count
 
     onSettlingCountsChanged: {
         if (!root.settled) {
@@ -222,6 +231,15 @@ Item {
     }
 
     Component.onCompleted: _settle.start()
+
+    Connections {
+        target: Qt.application
+
+        function onStateChanged() {
+            if (Qt.application.state === Qt.ApplicationActive)
+                Library.checkHomeDay()
+        }
+    }
 
     Connections {
         target: Library.continueFiles
@@ -656,51 +674,13 @@ Item {
                 }
             }
 
-            Connections {
-                target: _surpriseRow
+            Component {
+                id: _shelf
 
-                function onActiveFocusChanged() {
-                    if (_surpriseRow.activeFocus)
-                        root.adoptRow(_surpriseRow)
-                }
-            }
-
-            Ctrl.SurpriseMe {
-                id: _surpriseRow
-
-                width: parent.width
-                visible: Library.movies.count > 0 || Library.shows.count > 0
-                height: visible ? implicitHeight : 0
-
-                onSurpriseRequested: {
-                    const previous = _surpriseRow.hasPick ? _surpriseRow.pick.mediaId : 0
-                    _surpriseRow.pick = Library.surpriseMe(previous)
-                    _surpriseRow.searched = true
-                }
-                onPlayRequested: (chosen) => root.playRequested(chosen.playHandle)
-                onDetailsRequested: (chosen) => {
-                    if (chosen.kind === "tv")
-                        root.showRequested(chosen.mediaId, chosen.title)
-                    else
-                        root.detailsRequested(chosen.handle)
-                }
-                onLeftEdgeReached: root.drawerRequested()
-                onUpRequested: root.moveRow(-1)
-                onDownRequested: root.moveRow(1)
-            }
-
-            Repeater {
-                id: _genreRows
-
-                model: Library.genreRows
-
-                onItemAdded: Qt.callLater(root.collectGenreLists)
-                onItemRemoved: Qt.callLater(root.collectGenreLists)
-
-                delegate: Column {
+                Column {
                     id: _genre
 
-                    required property string genre
+                    required property string label
                     required property int titleCount
                     required property var titles
 
@@ -739,7 +719,7 @@ Item {
 
                     Ctrl.RowHeader {
                         width: parent.width
-                        title: _genre.genre
+                        title: _genre.label
                         countText: String(_genre.titleCount)
                     }
 
@@ -814,6 +794,61 @@ Item {
                         }
                     }
                 }
+            }
+
+            Repeater {
+                id: _pickRows
+
+                model: Library.pickRows
+
+                onItemAdded: Qt.callLater(root.collectGenreLists)
+                onItemRemoved: Qt.callLater(root.collectGenreLists)
+
+                delegate: _shelf
+            }
+
+            Connections {
+                target: _surpriseRow
+
+                function onActiveFocusChanged() {
+                    if (_surpriseRow.activeFocus)
+                        root.adoptRow(_surpriseRow)
+                }
+            }
+
+            Ctrl.SurpriseMe {
+                id: _surpriseRow
+
+                width: parent.width
+                visible: Library.movies.count + Library.shows.count >= 50
+                height: visible ? implicitHeight : 0
+
+                onSurpriseRequested: {
+                    const previous = _surpriseRow.hasPick ? _surpriseRow.pick.mediaId : 0
+                    _surpriseRow.pick = Library.surpriseMe(previous)
+                    _surpriseRow.searched = true
+                }
+                onPlayRequested: (chosen) => root.playRequested(chosen.playHandle)
+                onDetailsRequested: (chosen) => {
+                    if (chosen.kind === "tv")
+                        root.showRequested(chosen.mediaId, chosen.title)
+                    else
+                        root.detailsRequested(chosen.handle)
+                }
+                onLeftEdgeReached: root.drawerRequested()
+                onUpRequested: root.moveRow(-1)
+                onDownRequested: root.moveRow(1)
+            }
+
+            Repeater {
+                id: _genreRows
+
+                model: Library.genreRows
+
+                onItemAdded: Qt.callLater(root.collectGenreLists)
+                onItemRemoved: Qt.callLater(root.collectGenreLists)
+
+                delegate: _shelf
             }
 
             Item {

@@ -34,6 +34,28 @@ QStringList titleNames(const GenreShelf::Row &row)
     return names;
 }
 
+QList<MediaRecord> manyGenres()
+{
+    const QStringList genres = {
+        QStringLiteral("Action"), QStringLiteral("Comedy"), QStringLiteral("Drama"),
+        QStringLiteral("Horror"), QStringLiteral("Thriller"), QStringLiteral("Romance"),
+        QStringLiteral("Crime"), QStringLiteral("Animation"), QStringLiteral("Mystery"),
+        QStringLiteral("Family"),
+    };
+    QList<MediaRecord> titles;
+    qint64 id = 1;
+    for (const QString &genre : genres) {
+        for (int i = 0; i < 8; ++i, ++id) {
+            MediaRecord title = titled(id, QStringLiteral("movie"),
+                                       QStringLiteral("%1 %2").arg(genre).arg(i), genre);
+            title.fileCount = 1;
+            title.rating = double(id % 10);
+            titles.append(title);
+        }
+    }
+    return titles;
+}
+
 }
 
 class TestGenreShelf : public QObject
@@ -47,6 +69,12 @@ private slots:
     void aRowMixesFilmsAndShows();
     void theBiggestGenreComesFirstAndSmallOnesHaveNoRow();
     void theNewestAdditionComesFirstInARow();
+
+    void aDayKeepsTheSameRowsAndOrder();
+    void aDayShowsOnlySomeGenres();
+    void anotherDayChangesTheRows();
+    void finishedTitlesGoToTheBackOfADailyRow();
+    void shortOnTimeKeepsShortUnwatchedFilms();
 };
 
 void TestGenreShelf::filmAndShowGenresShareOneName_data()
@@ -128,6 +156,99 @@ void TestGenreShelf::theNewestAdditionComesFirstInARow()
     QCOMPARE(titleNames(rows.first()),
              QStringList({QStringLiteral("Newest"), QStringLiteral("Middle"),
                           QStringLiteral("Old"), QStringLiteral("Never added")}));
+}
+
+void TestGenreShelf::aDayKeepsTheSameRowsAndOrder()
+{
+    const QList<MediaRecord> titles = manyGenres();
+    const QDate day(2026, 11, 18);
+
+    const QList<GenreShelf::Row> first = GenreShelf::daily(titles, {}, 6, 6, day);
+    const QList<GenreShelf::Row> again = GenreShelf::daily(titles, {}, 6, 6, day);
+
+    QCOMPARE(genreNames(again), genreNames(first));
+    for (int i = 0; i < first.size(); ++i) {
+        QCOMPARE(titleNames(again.at(i)), titleNames(first.at(i)));
+    }
+}
+
+void TestGenreShelf::aDayShowsOnlySomeGenres()
+{
+    const QList<GenreShelf::Row> rows =
+        GenreShelf::daily(manyGenres(), {}, 6, 6, QDate(2026, 11, 18));
+    QCOMPARE(rows.size(), 6);
+}
+
+void TestGenreShelf::anotherDayChangesTheRows()
+{
+    const QList<MediaRecord> titles = manyGenres();
+    const QList<GenreShelf::Row> today = GenreShelf::daily(titles, {}, 6, 6, QDate(2026, 11, 18));
+
+    bool changed = false;
+    for (int offset = 1; offset <= 7 && !changed; ++offset) {
+        const QList<GenreShelf::Row> other =
+            GenreShelf::daily(titles, {}, 6, 6, QDate(2026, 11, 18).addDays(offset));
+        changed = genreNames(other) != genreNames(today)
+                  || titleNames(other.first()) != titleNames(today.first());
+    }
+    QVERIFY(changed);
+}
+
+void TestGenreShelf::finishedTitlesGoToTheBackOfADailyRow()
+{
+    QList<MediaRecord> titles;
+    for (int i = 1; i <= 8; ++i) {
+        MediaRecord title = titled(i, QStringLiteral("movie"), QStringLiteral("Film %1").arg(i),
+                                   QStringLiteral("Drama"));
+        title.fileCount = 1;
+        title.rating = 9.0;
+        if (i <= 3) {
+            title.watchedCount = 1;
+        }
+        titles.append(title);
+    }
+
+    const QList<GenreShelf::Row> rows = GenreShelf::daily(titles, {}, 6, 6, QDate(2026, 11, 18));
+    QCOMPARE(rows.size(), 1);
+    const QList<MediaRecord> &row = rows.first().titles;
+    for (int i = 0; i < 5; ++i) {
+        QVERIFY(!GenreShelf::finished(row.at(i)));
+    }
+    for (int i = 5; i < 8; ++i) {
+        QVERIFY(GenreShelf::finished(row.at(i)));
+    }
+}
+
+void TestGenreShelf::shortOnTimeKeepsShortUnwatchedFilms()
+{
+    auto film = [](qint64 id, const QString &name, int minutes) {
+        MediaRecord title = titled(id, QStringLiteral("movie"), name, QStringLiteral("Drama"));
+        title.fileCount = 1;
+        title.runtimeMinutes = minutes;
+        return title;
+    };
+
+    MediaRecord watched = film(4, QStringLiteral("Watched"), 90);
+    watched.watchedCount = 1;
+    MediaRecord started = film(5, QStringLiteral("Started"), 90);
+    started.partialProgress = 0.3;
+    MediaRecord show = titled(6, QStringLiteral("tv"), QStringLiteral("Show"),
+                              QStringLiteral("Drama"));
+    show.runtimeMinutes = 30;
+    show.fileCount = 1;
+
+    const QList<MediaRecord> titles = {
+        film(1, QStringLiteral("Short"), 85),
+        film(2, QStringLiteral("Exactly"), 100),
+        film(3, QStringLiteral("Long"), 101),
+        watched, started, show,
+        film(7, QStringLiteral("Unknown"), 0),
+    };
+
+    QStringList names = titleNames(
+        {QString(), GenreShelf::shortOnTime(titles, 100, 30, QDate(2026, 11, 18)), QString()});
+    names.sort();
+    QCOMPARE(names, QStringList({QStringLiteral("Exactly"), QStringLiteral("Short")}));
 }
 
 QTEST_GUILESS_MAIN(TestGenreShelf)

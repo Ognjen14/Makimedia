@@ -30,6 +30,7 @@ set(MM_TESTS
     tst_subtitleencoding
     tst_listtext
     tst_genreshelf
+    tst_similartitles
     tst_titlearrangement
     tst_singleinstance
     tst_tmdbcollection

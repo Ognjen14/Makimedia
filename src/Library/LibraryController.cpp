@@ -6,6 +6,8 @@
 #include "Library/FileListModel.h"
 #include "Library/BrowseListModel.h"
 #include "Library/CollectionShelf.h"
+#include "Library/GenreShelf.h"
+#include "Library/SimilarTitles.h"
 #include "Library/FolderListModel.h"
 #include "Library/MediaHandle.h"
 #include "Library/MediaListModel.h"
@@ -87,6 +89,8 @@ LibraryController::LibraryController(Database &database,
     , m_suggestionModel(new MediaListModel(this))
     , m_recentTitleModel(new MediaListModel(this))
     , m_genreRowModel(new GenreRowModel(this))
+    , m_pickRowModel(new GenreRowModel(this))
+    , m_homeDay(QDate::currentDate())
     , m_movieGridModel(new MediaListModel(this))
     , m_showGridModel(new MediaListModel(this))
     , m_collectionModel(new CollectionListModel(this))
@@ -155,6 +159,12 @@ LibraryController::LibraryController(Database &database,
                    << (m_collectionPageModel->order() == CollectionPage::Story ? "story" : "release");
         refreshCollectionPage();
     });
+
+#if defined(MM_SHUFFLE_HOME)
+    m_homeShift = int(QRandomGenerator::global()->bounded(1, 100000));
+    MM_LOG_I() << "home rows reshuffle on every launch (MM_SHUFFLE_HOME), shift"
+               << m_homeShift << "days";
+#endif
 
     recountFiles();
     reloadFolders();
@@ -1575,6 +1585,7 @@ void LibraryController::applyArtworkLanded(const QStringList &paths, bool everyt
     m_suggestionModel->touchArtwork(paths, everything);
     m_recentTitleModel->touchArtwork(paths, everything);
     m_genreRowModel->touchArtwork(paths, everything);
+    m_pickRowModel->touchArtwork(paths, everything);
     m_movieGridModel->touchArtwork(paths, everything);
     m_showGridModel->touchArtwork(paths, everything);
     m_collectionModel->touchArtwork(paths, everything);
@@ -1993,6 +2004,7 @@ void LibraryController::refreshPlayedViews(const QString &handle)
 
     QElapsedTimer took;
     took.start();
+    checkHomeDay();
     refreshPlayedFiles({file.id});
     emit fileCountChanged();
     MM_LOG_D() << "views refreshed for played file" << file.id << "in" << took.elapsed() << "ms";
@@ -2516,6 +2528,23 @@ QVariantMap LibraryController::surpriseMe(qint64 notThisOne) const
 GenreRowModel *LibraryController::genreRows() const
 {
     return m_genreRowModel;
+}
+
+GenreRowModel *LibraryController::pickRows() const
+{
+    return m_pickRowModel;
+}
+
+void LibraryController::checkHomeDay()
+{
+    const QDate today = QDate::currentDate();
+    if (today == m_homeDay) {
+        return;
+    }
+    MM_LOG_I() << "home rows turn over from" << m_homeDay.toString(Qt::ISODate)
+               << "to" << today.toString(Qt::ISODate);
+    m_homeDay = today;
+    refreshGenreRows();
 }
 
 MediaListModel *LibraryController::movieGrid() const
@@ -3474,9 +3503,19 @@ void LibraryController::refreshCollectionPage()
 void LibraryController::refreshGenreRows()
 {
     constexpr int kSmallestRow = 6;
+    constexpr int kGenreRowsPerDay = 9;
+    constexpr int kShortestShortRow = 6;
+    constexpr int kShortRuntime = 100;
+    constexpr int kShortRowLength = 30;
+    constexpr int kPickRowLength = 20;
+    constexpr int kSmallestPickRow = 4;
+    constexpr int kPickSeeds = 3;
+    constexpr int kLeadCast = 5;
 
     QElapsedTimer timer;
     timer.start();
+
+    const QDate seedDay = m_homeDay.addDays(m_homeShift);
 
     QList<MediaRecord> titles;
     titles.reserve(m_movieModel->rowCount() + m_showModel->rowCount());
@@ -3487,12 +3526,86 @@ void LibraryController::refreshGenreRows()
         titles.append(m_showModel->at(row));
     }
 
-    const QList<GenreShelf::Row> rows =
-        GenreShelf::build(titles, m_mediaRepository.lastAddedByTitle(), kSmallestRow);
+    QList<GenreShelf::Row> rows;
+
+    const QList<MediaRecord> quick =
+        GenreShelf::shortOnTime(titles, kShortRuntime, kShortRowLength, seedDay);
+    if (quick.size() >= kShortestShortRow) {
+        rows.append({QStringLiteral(":short"), quick, tr("Short on time")});
+    }
+
+    rows += GenreShelf::daily(titles, m_mediaRepository.lastAddedByTitle(), kSmallestRow,
+                              kGenreRowsPerDay, seedDay);
     m_genreRowModel->setRows(rows);
 
-    MM_LOG_D() << "genre rows:" << rows.size() << "from" << titles.size()
-               << "titles in" << timer.elapsed() << "ms";
+    QList<GenreShelf::Row> picks;
+    QString pickedFrom;
+    const QList<QPair<qint64, qint64>> finishedTitles =
+        m_mediaRepository.recentlyFinishedTitles(kPickSeeds);
+    if (!finishedTitles.isEmpty()) {
+        QHash<qint64, MediaRecord> byId;
+        for (const MediaRecord &title : std::as_const(titles)) {
+            byId.insert(title.id, title);
+        }
+
+        QList<MediaRecord> seeds;
+        bool finishedToday = false;
+        for (const auto &finished : finishedTitles) {
+            if (!byId.contains(finished.first)) {
+                continue;
+            }
+            if (seeds.isEmpty() && finished.second > 0) {
+                finishedToday =
+                    QDateTime::fromSecsSinceEpoch(finished.second).toLocalTime().date()
+                    == m_homeDay;
+            }
+            seeds.append(byId.value(finished.first));
+        }
+
+        if (!seeds.isEmpty()) {
+            SimilarTitles::Known known;
+            known.collections = m_mediaRepository.collectionsByMedia();
+            const QHash<qint64, QList<CreditRecord>> credits =
+                m_mediaRepository.leadCredits(kLeadCast);
+            for (auto it = credits.constBegin(); it != credits.constEnd(); ++it) {
+                SimilarTitles::People people;
+                for (const CreditRecord &credit : it.value()) {
+                    if (credit.kind == CreditRecord::Cast) {
+                        people.cast.append(credit.name);
+                    } else {
+                        people.directors.append(credit.name);
+                    }
+                }
+                known.people.insert(it.key(), people);
+            }
+
+            const int first = finishedToday
+                ? 0
+                : int(GenreShelf::dayChance(seedDay, GenreShelf::saltOf(
+                                                QStringLiteral("because you watched")))
+                      * seeds.size());
+            for (int step = 0; step < seeds.size(); ++step) {
+                const MediaRecord &seed = seeds.at((first + step) % seeds.size());
+                const QList<MediaRecord> similar =
+                    SimilarTitles::similarTo(seed, titles, known, kPickRowLength);
+                if (similar.size() >= kSmallestPickRow) {
+                    picks.append({QStringLiteral(":because:%1").arg(seed.id), similar,
+                                  tr("Because you watched %1").arg(seed.title)});
+                    pickedFrom = seed.title;
+                    MM_LOG_I() << "because you watched row from" << seed.title
+                               << (finishedToday ? "(finished today)" : "(daily rotation)")
+                               << "with" << similar.size() << "titles";
+                    break;
+                }
+            }
+        }
+    }
+    m_pickRowModel->setRows(picks);
+
+    MM_LOG_D() << "home rows for" << m_homeDay.toString(Qt::ISODate) << ":" << rows.size()
+               << "shelves," << (pickedFrom.isEmpty() ? QStringLiteral("no pick row")
+                                                      : QStringLiteral("picks from ") + pickedFrom)
+               << "from" << titles.size() << "titles in" << timer.elapsed() << "ms";
 }
 
 UnmatchedShowModel *LibraryController::unmatchedShows() const

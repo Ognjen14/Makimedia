@@ -13,6 +13,7 @@ qt_standard_project_setup(REQUIRES 6.10)
 option(MM_LOG "Enable MM_LOG logging" ON)
 option(MM_LOG_VERBOSE "Keep debug lines in the log; OFF for a store release keeps info, warnings and errors" ON)
 option(MM_BUILD_TESTS "Build the unit tests" ON)
+option(MM_SHUFFLE_HOME "Testing only: reshuffle the daily home rows on every launch" OFF)
 
 set(MM_VIDEO_SUFFIXES
     mkv mp4 avi mov webm m4v ts m2ts mts wmv flv mpg mpeg ogv 3gp divx vob rmvb)
@@ -35,6 +36,7 @@ add_library(makimedia_core STATIC
     src/Data/SubtitleRepository.cpp
     src/Library/BrowseOptions.cpp
     src/Library/GenreShelf.cpp
+    src/Library/SimilarTitles.cpp
     src/Library/CollectionShelf.cpp
     src/Library/UniverseCatalog.cpp
     src/Library/CollectionPage.cpp
@@ -85,6 +87,7 @@ add_library(makimedia_core STATIC
     include/Data/SubtitleRepository.h
     include/Library/BrowseOptions.h
     include/Library/GenreShelf.h
+    include/Library/SimilarTitles.h
     include/Library/CollectionShelf.h
     include/Library/UniverseCatalog.h
     include/Library/CollectionPage.h
@@ -348,6 +351,7 @@ target_compile_features(appmakimedia
 
 target_compile_definitions(appmakimedia
     PRIVATE $<$<BOOL:${MM_LOG}>:MM_LOG_ENABLED>
+            $<$<BOOL:${MM_SHUFFLE_HOME}>:MM_SHUFFLE_HOME>
 )
 
 set_source_files_properties(qml/Singletons/AppTheme.qml

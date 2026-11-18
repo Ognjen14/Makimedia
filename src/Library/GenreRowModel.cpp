@@ -27,6 +27,8 @@ QVariant GenreRowModel::data(const QModelIndex &index, int role) const
         return entry.titles ? entry.titles->rowCount() : 0;
     case TitlesRole:
         return QVariant::fromValue<QObject *>(entry.titles);
+    case LabelRole:
+        return entry.label.isEmpty() ? entry.genre : entry.label;
     default:
         return QVariant();
     }
@@ -37,7 +39,8 @@ QHash<int, QByteArray> GenreRowModel::roleNames() const
     return {
         {GenreRole, "genre"},
         {TitleCountRole, "titleCount"},
-        {TitlesRole, "titles"}
+        {TitlesRole, "titles"},
+        {LabelRole, "label"}
     };
 }
 
@@ -84,7 +87,7 @@ void GenreRowModel::setRows(const QList<GenreShelf::Row> &rows)
                 const GenreShelf::Row &row = rows.at(step.to + i);
                 auto *titles = new MediaListModel(this);
                 titles->setItems(row.titles);
-                m_rows.insert(step.to + i, {row.genre, titles});
+                m_rows.insert(step.to + i, {row.genre, titles, row.label});
             }
             endInsertRows();
             break;
@@ -104,9 +107,17 @@ void GenreRowModel::setRows(const QList<GenreShelf::Row> &rows)
     for (int row = 0; row < m_rows.size(); ++row) {
         const int countBefore = m_rows.at(row).titles->rowCount();
         m_rows.at(row).titles->setItems(rows.at(row).titles);
+        QList<int> changedRoles;
         if (m_rows.at(row).titles->rowCount() != countBefore) {
+            changedRoles.append(TitleCountRole);
+        }
+        if (m_rows.at(row).label != rows.at(row).label) {
+            m_rows[row].label = rows.at(row).label;
+            changedRoles.append(LabelRole);
+        }
+        if (!changedRoles.isEmpty()) {
             const QModelIndex changed = index(row, 0);
-            emit dataChanged(changed, changed, {TitleCountRole});
+            emit dataChanged(changed, changed, changedRoles);
         }
     }
 

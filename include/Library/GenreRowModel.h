@@ -20,7 +20,8 @@ public:
     enum Roles {
         GenreRole = Qt::UserRole + 1,
         TitleCountRole,
-        TitlesRole
+        TitlesRole,
+        LabelRole
     };
 
     explicit GenreRowModel(QObject *parent = nullptr);
@@ -40,6 +41,7 @@ private:
     {
         QString genre;
         MediaListModel *titles = nullptr;
+        QString label;
     };
 
     qint64 keyOf(const QString &genre);

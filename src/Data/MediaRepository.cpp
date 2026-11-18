@@ -413,6 +413,73 @@ QHash<qint64, qint64> MediaRepository::lastAddedByTitle() const
     return added;
 }
 
+QList<QPair<qint64, qint64>> MediaRepository::recentlyFinishedTitles(int limit) const
+{
+    QList<QPair<qint64, qint64>> finished;
+    if (limit <= 0) {
+        return finished;
+    }
+
+    QSqlQuery query(m_database.handle());
+    query.prepare(QStringLiteral(
+        "SELECT fm.media_id, MAX(COALESCE(p.last_played, 0)) AS played"
+        " FROM file_media fm"
+        " JOIN playback_state p ON p.file_id = fm.file_id"
+        " JOIN files f ON f.id = fm.file_id"
+        " WHERE p.watched = 1 AND fm.media_id IS NOT NULL"
+        "   AND +fm.suggested = 0 AND +f.missing = 0"
+        " GROUP BY fm.media_id"
+        " ORDER BY played DESC, fm.media_id DESC"
+        " LIMIT :limit"));
+    query.bindValue(QStringLiteral(":limit"), limit);
+
+    if (!query.exec()) {
+        MM_LOG_E() << "could not list recently finished titles" << query.lastError().text();
+        return finished;
+    }
+    while (query.next()) {
+        finished.append({query.value(0).toLongLong(), query.value(1).toLongLong()});
+    }
+    return finished;
+}
+
+QHash<qint64, QList<CreditRecord>> MediaRepository::leadCredits(int castPerTitle) const
+{
+    QHash<qint64, QList<CreditRecord>> credits;
+
+    QSqlQuery query(m_database.handle());
+    query.setForwardOnly(true);
+    query.prepare(QStringLiteral(
+        "SELECT media_id, kind, name FROM credits"
+        " WHERE episode_id = 0 AND kind IN (:cast, :director, :creator)"
+        " ORDER BY media_id, sort"));
+    query.bindValue(QStringLiteral(":cast"), int(CreditRecord::Cast));
+    query.bindValue(QStringLiteral(":director"), int(CreditRecord::Director));
+    query.bindValue(QStringLiteral(":creator"), int(CreditRecord::Creator));
+
+    if (!query.exec()) {
+        MM_LOG_W() << "could not read lead credits" << query.lastError().text();
+        return credits;
+    }
+
+    QHash<qint64, int> castSeen;
+    while (query.next()) {
+        const qint64 mediaId = query.value(0).toLongLong();
+        CreditRecord credit;
+        credit.kind = query.value(1).toInt();
+        credit.name = query.value(2).toString();
+        if (credit.kind == CreditRecord::Cast) {
+            int &seen = castSeen[mediaId];
+            if (seen >= castPerTitle) {
+                continue;
+            }
+            ++seen;
+        }
+        credits[mediaId].append(credit);
+    }
+    return credits;
+}
+
 QList<qint64> MediaRepository::fileIdsFor(qint64 mediaId) const
 {
     QList<qint64> ids;

@@ -18,6 +18,7 @@
 #include "Platform/MediaFileInfo.h"
 
 #include <QAbstractItemModel>
+#include <QDate>
 #include <QHash>
 #include <QList>
 #include <QObject>
@@ -81,6 +82,7 @@ class LibraryController : public QObject
     Q_PROPERTY(MediaListModel *suggestions READ suggestions CONSTANT FINAL)
     Q_PROPERTY(MediaListModel *recentTitles READ recentTitles CONSTANT FINAL)
     Q_PROPERTY(GenreRowModel *genreRows READ genreRows CONSTANT FINAL)
+    Q_PROPERTY(GenreRowModel *pickRows READ pickRows CONSTANT FINAL)
     Q_PROPERTY(MediaListModel *movieGrid READ movieGrid CONSTANT FINAL)
     Q_PROPERTY(MediaListModel *showGrid READ showGrid CONSTANT FINAL)
     Q_PROPERTY(int movieSort READ movieSort WRITE setMovieSort NOTIFY gridOptionsChanged FINAL)
@@ -181,6 +183,7 @@ public:
     MediaListModel *suggestions() const;
     MediaListModel *recentTitles() const;
     GenreRowModel *genreRows() const;
+    GenreRowModel *pickRows() const;
     MediaListModel *movieGrid() const;
     MediaListModel *showGrid() const;
     int movieSort() const;
@@ -315,6 +318,7 @@ public:
                                     double durationSeconds,
                                     bool refreshViews = true);
     Q_INVOKABLE void refreshPlayedViews(const QString &handle);
+    Q_INVOKABLE void checkHomeDay();
     Q_INVOKABLE double resumePositionFor(const QString &handle);
     Q_INVOKABLE void recordProbe(const QString &handle,
                                  double durationSeconds,
@@ -472,6 +476,9 @@ private:
     MediaListModel *m_suggestionModel = nullptr;
     MediaListModel *m_recentTitleModel = nullptr;
     GenreRowModel *m_genreRowModel = nullptr;
+    GenreRowModel *m_pickRowModel = nullptr;
+    QDate m_homeDay;
+    int m_homeShift = 0;
     MediaListModel *m_movieGridModel = nullptr;
     MediaListModel *m_showGridModel = nullptr;
     CollectionListModel *m_collectionModel = nullptr;
