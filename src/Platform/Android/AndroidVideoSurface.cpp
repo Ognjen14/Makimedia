@@ -2,6 +2,7 @@
 
 #include "MmLog.h"
 
+#include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QJniEnvironment>
 #include <QJniObject>
@@ -9,26 +10,106 @@
 #include <QSemaphore>
 #include <QThread>
 
+#include <android/native_window.h>
+#include <android/native_window_jni.h>
 #include <jni.h>
 
+#include <cstdint>
 #include <memory>
 
 namespace {
 
 const char *kSurfaceClass = "com/topicdev/makimedia/org/MakimediaVideoSurface";
+constexpr int kMainKind = 0;
+constexpr int kPreviewKind = 1;
 constexpr int kSurfaceReleaseWaitMs = 500;
 
 }
 
 AndroidVideoSurface *AndroidVideoSurface::instance()
 {
-    static AndroidVideoSurface surface;
+    static AndroidVideoSurface surface(kMainKind);
     return &surface;
 }
 
-AndroidVideoSurface::AndroidVideoSurface(QObject *parent)
-    : QObject(parent)
+AndroidVideoSurface *AndroidVideoSurface::preview()
 {
+    static AndroidVideoSurface surface(kPreviewKind);
+    return &surface;
+}
+
+AndroidVideoSurface::AndroidVideoSurface(int kind, QObject *parent)
+    : QObject(parent)
+    , m_kind(kind)
+{
+    if (QCoreApplication *app = QCoreApplication::instance()) {
+        moveToThread(app->thread());
+    }
+}
+
+namespace {
+
+struct NativeWindowLayout
+{
+    int magic;
+    int version;
+    void *reserved[4];
+    void (*incRef)(void *);
+    void (*decRef)(void *);
+    const uint32_t flags;
+    const int minSwapInterval;
+    const int maxSwapInterval;
+    const float xdpi;
+    const float ydpi;
+    intptr_t oem[4];
+    int (*setSwapInterval)(ANativeWindow *, int);
+    int (*dequeueBufferDeprecated)(ANativeWindow *, void **);
+    int (*lockBufferDeprecated)(ANativeWindow *, void *);
+    int (*queueBufferDeprecated)(ANativeWindow *, void *);
+    int (*query)(const ANativeWindow *, int, int *);
+    int (*perform)(ANativeWindow *, int, ...);
+};
+
+constexpr int kNativeWindowMagic = ('_' << 24) | ('w' << 16) | ('n' << 8) | 'd';
+constexpr int kPerformApiDisconnect = 14;
+constexpr int kApiMedia = 3;
+
+}
+
+void AndroidVideoSurface::cutOffDeadDecoder()
+{
+    QJniObject surface = QJniObject::callStaticObjectMethod(
+        kSurfaceClass, "surface", "(I)Landroid/view/Surface;", jint(m_kind));
+    if (!surface.isValid()) {
+        return;
+    }
+
+    QJniEnvironment env;
+    ANativeWindow *window = ANativeWindow_fromSurface(env.jniEnv(), surface.object());
+    if (!window) {
+        return;
+    }
+
+    auto *layout = reinterpret_cast<NativeWindowLayout *>(window);
+    if (layout->magic != kNativeWindowMagic || !layout->perform) {
+        MM_LOG_W() << "the" << name() << "surface is not laid out as expected,"
+                   << "leaving it as it is";
+        ANativeWindow_release(window);
+        return;
+    }
+
+    const int rc = layout->perform(window, kPerformApiDisconnect, kApiMedia);
+    ANativeWindow_release(window);
+    if (rc == 0) {
+        MM_LOG_I() << "the" << name() << "surface is free of the ended decoder";
+    } else {
+        MM_LOG_D() << "the" << name() << "surface had no decoder to cut off, rc" << rc;
+    }
+}
+
+const char *AndroidVideoSurface::name() const
+{
+    return m_kind == kPreviewKind ? "preview" : "playback";
 }
 
 AndroidVideoSurface::~AndroidVideoSurface()
@@ -54,21 +135,56 @@ bool AndroidVideoSurface::isReady() const
 
 void AndroidVideoSurface::setVideoSize(const QSize &size, const QSize &pixels)
 {
-    QJniObject::callStaticMethod<void>(kSurfaceClass, "setVideoSize", "(IIII)V",
+    QJniObject::callStaticMethod<void>(kSurfaceClass, "setVideoSize", "(IIIII)V",
+                                       jint(m_kind),
                                        jint(size.width()), jint(size.height()),
                                        jint(pixels.width()), jint(pixels.height()));
 }
 
 void AndroidVideoSurface::setAspect(double aspect, bool fill)
 {
-    QJniObject::callStaticMethod<void>(kSurfaceClass, "setAspect", "(DZ)V",
-                                       jdouble(aspect), jboolean(fill));
+    QJniObject::callStaticMethod<void>(kSurfaceClass, "setAspect", "(IDZ)V",
+                                       jint(m_kind), jdouble(aspect), jboolean(fill));
+}
+
+void AndroidVideoSurface::show(const QRect &pixels)
+{
+    QJniObject::callStaticMethod<void>(kSurfaceClass, "show", "(IIIII)V",
+                                       jint(m_kind), jint(pixels.x()), jint(pixels.y()),
+                                       jint(pixels.width()), jint(pixels.height()));
+}
+
+void AndroidVideoSurface::hide()
+{
+    QJniObject::callStaticMethod<void>(kSurfaceClass, "hide", "(I)V", jint(m_kind));
+}
+
+bool AndroidVideoSurface::retire()
+{
+    const bool spare = QJniObject::callStaticMethod<jboolean>(kSurfaceClass, "retire", "(I)Z",
+                                                              jint(m_kind));
+    if (!spare) {
+        MM_LOG_W() << "no spare" << name() << "surface left to swap in";
+        return false;
+    }
+
+    MM_LOG_W() << "swapping in a spare" << name()
+               << "surface, the old one is thrown away with the frozen decoder";
+    m_holds = 0;
+    m_releasePending = false;
+    m_released.reset();
+    releaseWindowHandle();
+    if (m_ready) {
+        m_ready = false;
+        emit readyChanged();
+    }
+    return true;
 }
 
 void AndroidVideoSurface::setFillColour(const QColor &colour)
 {
-    QJniObject::callStaticMethod<void>(kSurfaceClass, "setFillColour", "(I)V",
-                                       jint(colour.rgba()));
+    QJniObject::callStaticMethod<void>(kSurfaceClass, "setFillColour", "(II)V",
+                                       jint(m_kind), jint(colour.rgba()));
 }
 
 qint64 AndroidVideoSurface::windowHandle()
@@ -78,9 +194,9 @@ qint64 AndroidVideoSurface::windowHandle()
     }
 
     QJniObject surface = QJniObject::callStaticObjectMethod(
-        kSurfaceClass, "surface", "()Landroid/view/Surface;");
+        kSurfaceClass, "surface", "(I)Landroid/view/Surface;", jint(m_kind));
     if (!surface.isValid()) {
-        MM_LOG_W() << "no video surface to hand over yet";
+        MM_LOG_W() << "no" << name() << "surface to hand over yet";
         return 0;
     }
 
@@ -117,7 +233,7 @@ void AndroidVideoSurface::handleSurfaceReady()
     }
 
     m_ready = true;
-    MM_LOG_I() << "video surface ready";
+    MM_LOG_I() << name() << "surface ready";
     emit readyChanged();
 }
 
@@ -133,7 +249,7 @@ void AndroidVideoSurface::loseSurface(std::shared_ptr<QSemaphore> released)
 
     if (m_ready) {
         m_ready = false;
-        MM_LOG_I() << "video surface lost";
+        MM_LOG_I() << name() << "surface lost";
         emit readyChanged();
     }
 
@@ -166,19 +282,15 @@ void AndroidVideoSurface::finishReleaseWhenLetGo()
     }
 }
 
-extern "C" JNIEXPORT void JNICALL
-Java_com_topicdev_makimedia_org_MakimediaVideoSurface_nativeVideoSurfaceReady(JNIEnv *,
-                                                                         jclass)
+namespace {
+
+void surfaceReady(AndroidVideoSurface *surface)
 {
-    QMetaObject::invokeMethod(AndroidVideoSurface::instance(),
-                              "handleSurfaceReady", Qt::QueuedConnection);
+    QMetaObject::invokeMethod(surface, "handleSurfaceReady", Qt::QueuedConnection);
 }
 
-extern "C" JNIEXPORT void JNICALL
-Java_com_topicdev_makimedia_org_MakimediaVideoSurface_nativeVideoSurfaceLost(JNIEnv *,
-                                                                        jclass)
+void surfaceLost(AndroidVideoSurface *surface)
 {
-    AndroidVideoSurface *surface = AndroidVideoSurface::instance();
     if (QThread::currentThread() == surface->thread()) {
         surface->handleSurfaceLost();
         return;
@@ -199,4 +311,28 @@ Java_com_topicdev_makimedia_org_MakimediaVideoSurface_nativeVideoSurfaceLost(JNI
         MM_LOG_W() << "playback still held the video surface after"
                    << kSurfaceReleaseWaitMs << "ms, Android is freeing it anyway";
     }
+}
+
+}
+
+static AndroidVideoSurface *surfaceOfKind(jint kind)
+{
+    return kind == kPreviewKind ? AndroidVideoSurface::preview()
+                                : AndroidVideoSurface::instance();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_topicdev_makimedia_org_MakimediaVideoSurface_nativeVideoSurfaceReady(JNIEnv *,
+                                                                         jclass,
+                                                                         jint kind)
+{
+    surfaceReady(surfaceOfKind(kind));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_topicdev_makimedia_org_MakimediaVideoSurface_nativeVideoSurfaceLost(JNIEnv *,
+                                                                        jclass,
+                                                                        jint kind)
+{
+    surfaceLost(surfaceOfKind(kind));
 }

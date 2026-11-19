@@ -360,6 +360,7 @@ public:
     Q_INVOKABLE void setWatched(qint64 fileId, bool watched);
     Q_INVOKABLE void setAllWatched(const QStringList &fileHandles, bool watched);
     Q_INVOKABLE void removeFromContinueWatching(qint64 fileId);
+    Q_INVOKABLE int clearContinueWatching();
 
 signals:
     void scanningChanged();

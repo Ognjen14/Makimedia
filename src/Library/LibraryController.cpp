@@ -2544,6 +2544,7 @@ QVariantMap LibraryController::previewFor(qint64 mediaId) const
     QString handle;
     double duration = 0.0;
     QString episodeLabel;
+    QString episodeTitle;
 
     if (title.kind == QLatin1String("tv")) {
         const QList<EpisodeRecord> episodes = m_mediaRepository.episodesFor(mediaId);
@@ -2562,6 +2563,7 @@ QVariantMap LibraryController::previewFor(qint64 mediaId) const
             duration = episode.runtimeMinutes * 60.0;
         }
         episodeLabel = QStringLiteral("S%1 E%2").arg(episode.season).arg(episode.episode);
+        episodeTitle = episode.title;
     } else {
         const QList<LibraryFile> files =
             m_fileRepository.byIds(m_mediaRepository.fileIdsFor(mediaId));
@@ -2598,6 +2600,11 @@ QVariantMap LibraryController::previewFor(qint64 mediaId) const
     result.insert(QStringLiteral("episode"), episodeLabel);
     result.insert(QStringLiteral("backdropPath"), title.backdropPath);
     result.insert(QStringLiteral("posterPath"), title.posterPath);
+    result.insert(QStringLiteral("overview"), title.overview);
+    result.insert(QStringLiteral("episodeTitle"), episodeTitle);
+    result.insert(QStringLiteral("runtimeMinutes"), title.runtimeMinutes);
+    result.insert(QStringLiteral("rating"), title.rating);
+    result.insert(QStringLiteral("genres"), title.genres);
     return result;
 }
 
@@ -3676,6 +3683,53 @@ void LibraryController::refreshGenreRows()
             }
         }
     }
+
+#if defined(MM_TEST_ROW)
+    static const QStringList kTestTitles = {
+        QStringLiteral("Dune: Part Two"),
+        QStringLiteral("Inglourious Basterds"),
+        QStringLiteral("Icarus"),
+        QStringLiteral("When I Grow Up, I'll Be a Kangaroo"),
+        QStringLiteral("Mission: Impossible - Rogue Nation"),
+        QStringLiteral("Star Wars: The Force Awakens"),
+        QStringLiteral("The Chosen"),
+        QStringLiteral("Bullet Train"),
+        QStringLiteral("The Queen's Gambit"),
+        QStringLiteral("Hawkeye"),
+        QStringLiteral("Vikings"),
+        QStringLiteral("Eternals"),
+        QStringLiteral("A Few Good Men"),
+        QStringLiteral("Inception"),
+        QStringLiteral("Rush Hour 2"),
+        QStringLiteral("The Lord of the Rings: The Return of the King"),
+        QStringLiteral("Stranger Things"),
+        QStringLiteral("Arcane"),
+        QStringLiteral("No Country for Old Men"),
+        QStringLiteral("American Psycho"),
+    };
+    QHash<QString, MediaRecord> byTitle;
+    for (const MediaRecord &title : std::as_const(titles)) {
+        byTitle.insert(title.title.toCaseFolded(), title);
+    }
+    QList<MediaRecord> testTitles;
+    QStringList missing;
+    for (const QString &wanted : kTestTitles) {
+        const auto found = byTitle.constFind(wanted.toCaseFolded());
+        if (found != byTitle.constEnd()) {
+            testTitles.append(found.value());
+        } else {
+            missing.append(wanted);
+        }
+    }
+    if (!testTitles.isEmpty()) {
+        picks.prepend({QStringLiteral(":test"), testTitles, QStringLiteral("Test row")});
+    }
+    MM_LOG_I() << "test row (MM_TEST_ROW) with" << testTitles.size() << "titles"
+               << (missing.isEmpty() ? QString()
+                                     : QStringLiteral(", not in this library: ")
+                                           + missing.join(QStringLiteral(", ")));
+#endif
+
     m_pickRowModel->setRows(picks);
 
     MM_LOG_D() << "home rows for" << m_homeDay.toString(Qt::ISODate) << ":" << rows.size()
@@ -4058,6 +4112,31 @@ void LibraryController::setAllWatched(const QStringList &fileHandles, bool watch
     }
     refreshPlayedFiles(fileIds);
     emit fileCountChanged();
+}
+
+int LibraryController::clearContinueWatching()
+{
+    const QList<LibraryFile> files = m_fileRepository.continueWatching(100000);
+    QList<qint64> fileIds;
+    QSet<qint64> shows;
+    for (const LibraryFile &file : files) {
+        fileIds.append(file.id);
+        m_playbackRepository.clear(file.id);
+        const EpisodeRecord episode = m_mediaRepository.episodeForFile(file.id);
+        if (episode.mediaId > 0) {
+            shows.insert(episode.mediaId);
+        }
+    }
+    for (const qint64 show : std::as_const(shows)) {
+        m_playbackRepository.dismissShow(show);
+    }
+    MM_LOG_I() << "continue watching cleared:" << fileIds.size() << "files,"
+               << shows.size() << "shows";
+    if (!fileIds.isEmpty()) {
+        refreshPlayedFiles(fileIds);
+    }
+    emit fileCountChanged();
+    return int(fileIds.size());
 }
 
 void LibraryController::removeFromContinueWatching(qint64 fileId)

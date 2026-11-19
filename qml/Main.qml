@@ -23,7 +23,10 @@ ApplicationWindow {
     visible: !_startsHidden
     title: qsTr("Makimedia")
 
-    color: (System.isTelevision && _stack.depth > 1)
+    readonly property bool _tvPreviewOpen: _tvPreview.item ? _tvPreview.item.open : false
+    readonly property bool _tvPreviewVideo: _tvPreview.item ? _tvPreview.item.videoShown : false
+
+    color: (System.isTelevision && (_stack.depth > 1 || _tvPreviewVideo))
         ? "transparent"
         : S.AppTheme.background
 
@@ -514,6 +517,7 @@ ApplicationWindow {
 
         anchors.fill: parent
         initialItem: _shellPage
+        opacity: window._tvPreviewOpen ? 0 : 1
 
         pushEnter: null
         pushExit: null
@@ -523,9 +527,20 @@ ApplicationWindow {
         popExit: null
     }
 
-    C.PreviewCard {
+    Loader {
         anchors.fill: parent
         z: 40
+        active: !System.isTelevision
+        sourceComponent: C.PreviewCard {}
+    }
+
+    Loader {
+        id: _tvPreview
+
+        anchors.fill: parent
+        z: 40
+        active: System.isTelevision
+        sourceComponent: C.TvPreview {}
     }
 
     Binding {
@@ -586,9 +601,11 @@ ApplicationWindow {
                     || AppSettings.previewTipCount >= S.HoverPreview.tipLimit)
                 return
             AppSettings.previewTipCount += 1
-            _previewTip.show(S.HoverPreview.touchTriggers
-                             ? qsTr("Tip: press and hold a poster to watch a short preview")
-                             : qsTr("Tip: rest the mouse on a poster to watch a short preview"))
+            _previewTip.show(S.HoverPreview.focusTriggers
+                             ? qsTr("Tip: stay on a poster for a few seconds to watch a short preview")
+                             : S.HoverPreview.touchTriggers
+                               ? qsTr("Tip: press and hold a poster to watch a short preview")
+                               : qsTr("Tip: rest the mouse on a poster to watch a short preview"))
         }
     }
 

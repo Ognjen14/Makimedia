@@ -100,6 +100,10 @@ RemoteButton {
             HoverPreview.tileHovered(root, root.previewId, root.hovered)
     }
     onPreviewIdChanged: HoverPreview.tileGone(root)
+    onFocusedChanged: {
+        if (root.previewId)
+            HoverPreview.tileFocused(root, root.previewId, root.focused)
+    }
     Component.onDestruction: HoverPreview.tileGone(root)
 
     onPressAndHold: {
@@ -166,7 +170,7 @@ RemoteButton {
                         height: root.topCropArt
                                 ? width * AppTheme.posterAspectRatio
                                 : parent.height
-                        source: root.artSource
+                        source: root.visible ? root.artSource : ""
                         sourceSize.width: Math.ceil(width * Screen.devicePixelRatio / 128) * 128
                         sourceSize.height: Math.ceil(height * Screen.devicePixelRatio / 128) * 128
                         fillMode: root.topCropArt ? Image.PreserveAspectFit

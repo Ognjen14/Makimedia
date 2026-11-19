@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QColor>
+#include <QRect>
 #include <QObject>
 #include <QSemaphore>
 #include <QSize>
@@ -13,6 +14,7 @@ class AndroidVideoSurface : public QObject
 
 public:
     static AndroidVideoSurface *instance();
+    static AndroidVideoSurface *preview();
 
     void create();
     void destroy();
@@ -22,6 +24,13 @@ public:
     void setVideoSize(const QSize &size, const QSize &pixels);
 
     void setAspect(double aspect, bool fill);
+
+    void show(const QRect &pixels);
+    void hide();
+
+    bool retire();
+
+    void cutOffDeadDecoder();
 
     void setFillColour(const QColor &colour);
 
@@ -38,12 +47,14 @@ signals:
     void readyChanged();
 
 private:
-    explicit AndroidVideoSurface(QObject *parent = nullptr);
+    explicit AndroidVideoSurface(int kind, QObject *parent = nullptr);
+    const char *name() const;
     ~AndroidVideoSurface() override;
 
     void releaseWindowHandle();
     void finishReleaseWhenLetGo();
 
+    int m_kind = 0;
     bool m_ready = false;
     void *m_globalSurface = nullptr;
     int m_holds = 0;

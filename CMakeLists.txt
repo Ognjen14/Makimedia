@@ -14,6 +14,7 @@ option(MM_LOG "Enable MM_LOG logging" ON)
 option(MM_LOG_VERBOSE "Keep debug lines in the log; OFF for a store release keeps info, warnings and errors" ON)
 option(MM_BUILD_TESTS "Build the unit tests" ON)
 option(MM_SHUFFLE_HOME "Testing only: reshuffle the daily home rows on every launch" OFF)
+option(MM_TEST_ROW "Testing only: a Test row on the home page with the titles that strain the player" OFF)
 
 set(MM_VIDEO_SUFFIXES
     mkv mp4 avi mov webm m4v ts m2ts mts wmv flv mpg mpeg ogv 3gp divx vob rmvb)
@@ -192,6 +193,7 @@ qt_add_executable(appmakimedia
     src/AppUpdates.cpp
 
     src/Player/MpvController.cpp
+    src/Player/MpvEngine.cpp
     src/Player/MpvRenderItem.cpp
     src/Player/SeekPreviewService.cpp
     src/Player/TrackListModel.cpp
@@ -231,6 +233,8 @@ qt_add_executable(appmakimedia
     include/AppUpdates.h
 
     include/Player/MpvController.h
+    include/Player/MpvEngine.h
+    include/Player/MpvWire.h
     include/Player/MpvRenderItem.h
     include/Player/SeekPreviewService.h
     include/Player/TrackListModel.h
@@ -335,12 +339,23 @@ if(ANDROID)
         src/Platform/Android/AndroidAudioFocus.cpp
         src/Platform/Android/AndroidTransportControls.cpp
         src/Platform/Android/AndroidVideoSurface.cpp
+        src/Player/RemoteMpvEngine.cpp
 
         include/Platform/Android/AndroidMediaSource.h
         include/Platform/Android/AndroidAudioFocus.h
         include/Platform/Android/AndroidTransportControls.h
         include/Platform/Android/AndroidVideoSurface.h
+        include/Player/RemoteMpvEngine.h
     )
+
+    add_library(mmplayerhost SHARED src/PlayerHost/PlayerHost.cpp include/Player/MpvWire.h)
+    target_include_directories(mmplayerhost PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+    target_compile_features(mmplayerhost PRIVATE cxx_std_17)
+    target_link_libraries(mmplayerhost PRIVATE Libmpv::Libmpv log android)
+    set_target_properties(mmplayerhost PROPERTIES PREFIX "lib" SUFFIX ".so"
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+    add_dependencies(appmakimedia mmplayerhost)
+    target_link_libraries(appmakimedia PRIVATE android)
 endif()
 
 target_include_directories(appmakimedia
@@ -354,6 +369,7 @@ target_compile_features(appmakimedia
 target_compile_definitions(appmakimedia
     PRIVATE $<$<BOOL:${MM_LOG}>:MM_LOG_ENABLED>
             $<$<BOOL:${MM_SHUFFLE_HOME}>:MM_SHUFFLE_HOME>
+            $<$<BOOL:${MM_TEST_ROW}>:MM_TEST_ROW>
 )
 
 set_source_files_properties(qml/Singletons/AppTheme.qml
@@ -399,6 +415,7 @@ qt_add_qml_module(appmakimedia
         qml/Controls/ColourSwatch.qml
         qml/Controls/Divider.qml
         qml/Controls/PreviewCard.qml
+        qml/Controls/TvPreview.qml
         qml/Controls/FontSizePicker.qml
         qml/Controls/EmptyState.qml
         qml/Controls/FocusRing.qml
@@ -565,7 +582,7 @@ set_target_properties(appmakimedia PROPERTIES
 
 if(ANDROID)
     set_property(TARGET appmakimedia APPEND PROPERTY
-        QT_ANDROID_EXTRA_LIBS ${LIBMPV_RUNTIME_LIBS})
+        QT_ANDROID_EXTRA_LIBS ${LIBMPV_RUNTIME_LIBS} "${CMAKE_CURRENT_BINARY_DIR}/libmmplayerhost.so")
 
     # Android ships no OpenSSL that Qt can link against, so Qt Network has no
     # TLS backend and every HTTPS request fails. Nothing else needs it, which

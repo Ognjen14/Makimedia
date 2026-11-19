@@ -141,6 +141,20 @@ void AppSettings::setHoverPreviews(bool value)
     emit hoverPreviewsChanged();
 }
 
+bool AppSettings::tvPreviewSound() const
+{
+    return m_settings.value(QStringLiteral("tvPreviewSound"), true).toBool();
+}
+
+void AppSettings::setTvPreviewSound(bool value)
+{
+    if (tvPreviewSound() == value) {
+        return;
+    }
+    m_settings.setValue(QStringLiteral("tvPreviewSound"), value);
+    emit tvPreviewSoundChanged();
+}
+
 int AppSettings::previewTipCount() const
 {
     return m_settings.value(QStringLiteral("previewTipCount"), 0).toInt();

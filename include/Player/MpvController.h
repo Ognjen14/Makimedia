@@ -3,10 +3,12 @@
 #include "Player/TrackListModel.h"
 
 #include <QObject>
+#include <QRect>
 #include <QSize>
 #include <QString>
 #include <QElapsedTimer>
 #include <QHash>
+#include <QSet>
 #include <QTimer>
 #include <QUrl>
 #include <QVariantList>
@@ -17,6 +19,8 @@
 #include <memory>
 
 struct mpv_handle;
+
+class MpvEngine;
 
 class IAudioFocus;
 class QThread;
@@ -33,6 +37,8 @@ class MpvController : public QObject
     Q_PROPERTY(bool buffering READ buffering NOTIFY bufferingChanged FINAL)
     Q_PROPERTY(bool endReached READ endReached NOTIFY endReachedChanged FINAL)
     Q_PROPERTY(bool playerStuck READ playerStuck NOTIFY playerStuckChanged FINAL)
+    Q_PROPERTY(bool waitingForPicture READ waitingForPicture NOTIFY startStateChanged FINAL)
+    Q_PROPERTY(QString startNote READ startNote NOTIFY startStateChanged FINAL)
     Q_PROPERTY(bool allowUnsupportedPicture READ allowUnsupportedPicture
                WRITE setAllowUnsupportedPicture
                NOTIFY allowUnsupportedPictureChanged FINAL)
@@ -68,7 +74,9 @@ class MpvController : public QObject
     Q_PROPERTY(double videoPanY READ videoPanY WRITE setVideoPanY NOTIFY videoPanChanged FINAL)
 
 public:
-    explicit MpvController(QObject *parent = nullptr);
+    enum class Role { Playback, Preview };
+
+    explicit MpvController(Role role = Role::Playback, QObject *parent = nullptr);
     ~MpvController() override;
 
     mpv_handle *handle() const;
@@ -86,6 +94,8 @@ public:
     bool buffering() const;
     bool endReached() const;
     bool playerStuck() const;
+    bool waitingForPicture() const;
+    QString startNote() const;
 
     bool allowUnsupportedPicture() const;
     void setAllowUnsupportedPicture(bool allow);
@@ -146,6 +156,8 @@ public:
     Q_INVOKABLE void resetVideoZoom();
 
     Q_INVOKABLE void setSurfaceAspect(double aspect, bool fill);
+    Q_INVOKABLE void setSurfaceFrame(int x, int y, int width, int height);
+    Q_INVOKABLE bool usesSystemSurface() const;
 
     Q_INVOKABLE void setRenderContextActive(bool active);
     Q_INVOKABLE bool renderContextActive() const;
@@ -177,6 +189,7 @@ signals:
     void bufferingChanged();
     void endReachedChanged();
     void playerStuckChanged();
+    void startStateChanged();
     void allowUnsupportedPictureChanged();
     void positionChanged();
     void durationChanged();
@@ -236,18 +249,26 @@ private:
     void clearProperty(const QString &name);
     void command(const QVariantList &args);
     void setPropertyVariant(const QString &name, const QVariant &value);
-    void post(std::function<void(mpv_handle *)> work);
+    void post(std::function<void(MpvEngine *)> work);
     void startRequestThread();
     bool stopRequestThread();
     bool attachVideoSurface();
     void detachVideoSurface();
+    void watchVideoSurface();
+    void onVideoSurfaceReadyChanged();
+    void onFirstPictureLate();
+    void recoverFromFreeze(const QString &why, double resumeAt);
+    void reopenInSoftware();
+    void setStartState(bool waiting, const QString &note);
+    bool replaceEngine(const QString &why);
+    void runDeferredSeek();
 
     void rebuildTrackLists(const QVariant &trackList);
     void updateVideoResolution();
     void updateHdr();
     void setLoading(bool loading);
 
-    mpv_handle *m_mpv = nullptr;
+    MpvEngine *m_engine = nullptr;
     QThread *m_requestThread = nullptr;
     QObject *m_requestWorker = nullptr;
 
@@ -330,6 +351,27 @@ private:
     double m_nextStart = 0.0;
     bool m_startApplied = false;
     bool m_previewMode = false;
+
+    QSet<QString> m_softwarePaths;
+    bool m_softwareActive = false;
+
+    bool m_waitingForPicture = false;
+    QString m_startNote;
+    QMetaObject::Connection m_surfaceWatch;
+    QRect m_previewFrame;
+
+    QString m_currentPath;
+    QVariantList m_currentSubtitles;
+    double m_deferredSeek = -1.0;
+    bool m_pictureSeen = false;
+    int m_retries = 0;
+    bool m_retrying = false;
+    int m_abandonedEngines = 0;
+    std::shared_ptr<std::atomic<int>> m_frozenAlive =
+        std::make_shared<std::atomic<int>>(0);
+    QTimer m_firstPictureTimer;
+    int m_firstPictureWaits = 0;
+    QVariantMap m_subtitleStyle;
     int m_subPosBase = 100;
     double m_subtitleCover = 0.0;
     std::atomic<bool> m_ducked{false};

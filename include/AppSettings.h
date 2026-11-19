@@ -18,6 +18,7 @@ class AppSettings : public QObject
     Q_PROPERTY(bool keepScreenOn READ keepScreenOn WRITE setKeepScreenOn NOTIFY keepScreenOnChanged FINAL)
     Q_PROPERTY(bool dimWatched READ dimWatched WRITE setDimWatched NOTIFY dimWatchedChanged FINAL)
     Q_PROPERTY(bool previewSound READ previewSound WRITE setPreviewSound NOTIFY previewSoundChanged FINAL)
+    Q_PROPERTY(bool tvPreviewSound READ tvPreviewSound WRITE setTvPreviewSound NOTIFY tvPreviewSoundChanged FINAL)
     Q_PROPERTY(bool hoverPreviews READ hoverPreviews WRITE setHoverPreviews NOTIFY hoverPreviewsChanged FINAL)
     Q_PROPERTY(int previewTipCount READ previewTipCount WRITE setPreviewTipCount NOTIFY previewTipCountChanged FINAL)
     Q_PROPERTY(bool autoPlayNextEpisode READ autoPlayNextEpisode WRITE setAutoPlayNextEpisode NOTIFY autoPlayNextEpisodeChanged FINAL)
@@ -80,6 +81,8 @@ public:
     void setDimWatched(bool value);
     bool previewSound() const;
     void setPreviewSound(bool value);
+    bool tvPreviewSound() const;
+    void setTvPreviewSound(bool value);
     bool hoverPreviews() const;
     void setHoverPreviews(bool value);
     int previewTipCount() const;
@@ -181,6 +184,7 @@ signals:
     void keepScreenOnChanged();
     void dimWatchedChanged();
     void previewSoundChanged();
+    void tvPreviewSoundChanged();
     void hoverPreviewsChanged();
     void previewTipCountChanged();
     void autoPlayNextEpisodeChanged();

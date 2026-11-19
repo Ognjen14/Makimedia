@@ -8,9 +8,12 @@ Item {
     id: root
 
     property int playLimitMs: 30000
-    property int soundVolume: 50
+    property int soundVolume: 60
 
-    Component.onCompleted: PreviewPlayer.volume = root.soundVolume
+    Component.onCompleted: {
+        PreviewPlayer.volume = root.soundVolume
+        PreviewPlayer.panscan = 1.0
+    }
 
     Binding {
         target: PreviewPlayer

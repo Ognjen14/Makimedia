@@ -7,7 +7,7 @@ Item {
     property real radius: 0
     property bool clipping: true
 
-    layer.enabled: root.clipping
+    layer.enabled: root.clipping && root.visible
     layer.effect: OpacityMask {
         maskSource: Rectangle {
             width: root.width

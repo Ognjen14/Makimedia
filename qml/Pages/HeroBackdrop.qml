@@ -28,18 +28,21 @@ Item {
             anchors.centerIn: parent
             width: Math.round(parent.width * 1.25)
             height: Math.round(parent.height * 1.25)
-            source: root.source
+            source: root.visible && root.letterboxed ? root.source : ""
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
             cache: true
         }
     }
 
-    FastBlur {
+    Loader {
         anchors.fill: parent
-        visible: root.letterboxed && root.hasArtwork
-        source: _blurSource
-        radius: Math.round(root.height * 0.10)
+        active: root.visible && root.letterboxed && root.hasArtwork
+
+        sourceComponent: FastBlur {
+            source: _blurSource
+            radius: Math.round(root.height * 0.10)
+        }
     }
 
     Rectangle {
@@ -57,7 +60,7 @@ Item {
         anchors.bottom: parent.bottom
         width: root.frameWidth
 
-        layer.enabled: root.letterboxed
+        layer.enabled: root.letterboxed && root.visible
         layer.effect: OpacityMask {
             maskSource: LinearGradient {
                 width: _frameBox.width

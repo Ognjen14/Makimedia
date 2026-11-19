@@ -963,9 +963,42 @@ Item {
                 iconSource: S.Icons.play
                 trailing: Ctrl.SettingsRow.Switch
                 title: qsTr("Play previews")
-                subtitle: qsTr("Rest the mouse on a poster to play a short scene from it")
+                subtitle: S.HoverPreview.focusTriggers
+                          ? qsTr("Stay on a poster for a few seconds to play a short scene from it")
+                          : S.HoverPreview.touchTriggers
+                            ? qsTr("Press and hold a poster to play a short scene from it")
+                            : qsTr("Rest the mouse on a poster to play a short scene from it")
                 switchChecked: AppSettings.hoverPreviews
                 onSwitchToggled: (checked) => AppSettings.hoverPreviews = checked
+            }
+
+            Ctrl.SettingsRow {
+                width: parent.width
+                visible: S.HoverPreview.focusTriggers && AppSettings.hoverPreviews
+                height: visible ? implicitHeight : 0
+                iconSource: S.Icons.volume
+                trailing: Ctrl.SettingsRow.Switch
+                title: qsTr("Preview sound")
+                subtitle: qsTr("Previews play with their sound")
+                switchChecked: AppSettings.tvPreviewSound
+                onSwitchToggled: (checked) => AppSettings.tvPreviewSound = checked
+            }
+
+            Ctrl.SettingsRow {
+                width: parent.width
+                iconSource: S.Icons.close
+                title: qsTr("Clear Continue watching")
+                subtitle: {
+                    const cleared = root.clearedContinue
+                    if (cleared >= 0 && Library.continueCount === 0)
+                        return cleared === 1 ? qsTr("Cleared 1 title")
+                                             : qsTr("Cleared %1 titles").arg(cleared)
+                    return Library.continueCount > 0
+                           ? qsTr("Empties the Continue watching row on the home page")
+                           : qsTr("Nothing to clear")
+                }
+                enabled: Library.continueCount > 0
+                onClicked: _confirmClearContinue.open()
             }
 
             Ctrl.SettingsRow {
@@ -2520,5 +2553,22 @@ Item {
                                             qsTr("Apache License 2.0"))
             }
         }
+    }
+
+    property int clearedContinue: -1
+
+    Ctrl.AppDialog {
+        id: _confirmClearContinue
+
+        z: 60
+        title: qsTr("Clear Continue watching?")
+        message: Library.continueCount === 1
+                 ? qsTr("1 title leaves the Continue watching row, and where you stopped in it is forgotten. Titles you finished stay marked as watched.")
+                 : qsTr("%1 titles leave the Continue watching row, and where you stopped in each is forgotten. Titles you finished stay marked as watched.")
+                   .arg(Library.continueCount)
+        dismissText: qsTr("Cancel")
+        acceptText: qsTr("Clear")
+
+        onAccepted: root.clearedContinue = Library.clearContinueWatching()
     }
 }

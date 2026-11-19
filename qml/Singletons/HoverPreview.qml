@@ -6,11 +6,15 @@ QtObject {
     id: root
 
     readonly property bool touchTriggers: Qt.platform.os === "android" && !System.isTelevision
+    readonly property bool focusTriggers: System.isTelevision
     readonly property bool available: Qt.platform.os === "windows" || touchTriggers
+                                      || focusTriggers
     readonly property bool supported: available && AppSettings.hoverPreviews
+                                      && !PreviewPlayer.playerStuck
     property bool blocked: false
 
     property int hoverDelay: 1000
+    property int focusDelay: 4000
     property int closeGrace: 200
 
     property Item anchor: null
@@ -24,7 +28,7 @@ QtObject {
     property bool touchOpened: false
 
     function tileHovered(tile, id, hovered) {
-        if (!supported || touchTriggers || touchOpened || !tile || !id)
+        if (!supported || touchTriggers || focusTriggers || touchOpened || !tile || !id)
             return
         if (hovered) {
             if (tile === anchor) {
@@ -44,6 +48,27 @@ QtObject {
             _anchorHovered = false
             _grace.restart()
         }
+    }
+
+    function tileFocused(tile, id, focused) {
+        if (!supported || !focusTriggers || !tile || !id)
+            return
+        if (focused) {
+            if (tile === anchor)
+                return
+            if (anchor)
+                close()
+            _pending = tile
+            _pendingId = id
+            _delay.restart()
+            return
+        }
+        if (tile === _pending) {
+            _delay.stop()
+            _pending = null
+        }
+        if (tile === anchor)
+            close()
     }
 
     function tileGone(tile) {
@@ -94,7 +119,7 @@ QtObject {
     }
 
     property Timer _delay: Timer {
-        interval: root.hoverDelay
+        interval: root.focusTriggers ? root.focusDelay : root.hoverDelay
         onTriggered: {
             if (!root._pending || root.blocked)
                 return

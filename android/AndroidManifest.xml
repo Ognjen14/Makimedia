@@ -32,6 +32,8 @@
             <meta-data android:name="android.app.splash_screen_drawable" android:resource="@drawable/splash"/>
             <meta-data android:name="android.app.splash_screen_sticky" android:value="false"/>
         </activity>
+        <service android:exported="false" android:name="com.topicdev.makimedia.org.MakimediaPlaybackHost" android:process=":player"/>
+        <service android:exported="false" android:name="com.topicdev.makimedia.org.MakimediaPreviewHost" android:process=":preview"/>
         <activity android:excludeFromRecents="true" android:exported="false" android:name="com.topicdev.makimedia.org.MakimediaRestartActivity" android:noHistory="true" android:process=":restart" android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
         <provider android:authorities="${applicationId}.qtprovider" android:exported="false" android:grantUriPermissions="true" android:name="androidx.core.content.FileProvider">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/qtprovider_paths"/>

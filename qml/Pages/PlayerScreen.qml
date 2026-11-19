@@ -911,9 +911,38 @@ Item {
     }
 
     BusyIndicator {
+        id: _busy
+
         anchors.centerIn: parent
-        running: MpvPlayer.buffering || MpvPlayer.loading
+        running: MpvPlayer.buffering || MpvPlayer.loading || MpvPlayer.waitingForPicture
         visible: running
+    }
+
+    Rectangle {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: _busy.bottom
+        anchors.topMargin: S.AppTheme.spacing24
+        width: Math.min(parent.width - 2 * S.AppTheme.spacing24,
+                        _startNote.implicitWidth + 2 * S.AppTheme.spacing24)
+        height: _startNote.implicitHeight + 2 * S.AppTheme.spacing12
+        radius: height / 2
+        color: Qt.rgba(0, 0, 0, 0.62)
+        opacity: MpvPlayer.waitingForPicture && MpvPlayer.startNote.length > 0 ? 1 : 0
+        visible: opacity > 0
+
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+
+        Text {
+            id: _startNote
+
+            anchors.centerIn: parent
+            width: Math.min(implicitWidth, parent.width - 2 * S.AppTheme.spacing24)
+            text: MpvPlayer.startNote
+            color: "white"
+            font.pixelSize: S.AppTheme.fs16
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.WordWrap
+        }
     }
 
     Ctrl.EmptyState {

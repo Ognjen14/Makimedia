@@ -1,6 +1,7 @@
 #include "Player/MpvController.h"
 
 #include "MmLog.h"
+#include "Player/MpvEngine.h"
 #include "Platform/IAudioFocus.h"
 #include "Platform/ITransportControls.h"
 #include "Player/VideoTraits.h"
@@ -15,6 +16,7 @@
 #include <QVariantMap>
 #include <QVector>
 
+#include <thread>
 #include <utility>
 
 #include <mpv/client.h>
@@ -28,6 +30,7 @@
 #  include <QJniObject>
 
 #  include "Platform/Android/AndroidVideoSurface.h"
+#  include "Player/RemoteMpvEngine.h"
 #  include <QStandardPaths>
 
 #  include <dlfcn.h>
@@ -38,37 +41,7 @@ namespace {
 
 constexpr qint64 kLargestSupportedWidth = 4096;
 
-QVariant nodeToVariant(const mpv_node *node)
-{
-    switch (node->format) {
-    case MPV_FORMAT_STRING:
-        return QString::fromUtf8(node->u.string);
-    case MPV_FORMAT_FLAG:
-        return node->u.flag != 0;
-    case MPV_FORMAT_INT64:
-        return static_cast<qint64>(node->u.int64);
-    case MPV_FORMAT_DOUBLE:
-        return node->u.double_;
-    case MPV_FORMAT_NODE_ARRAY: {
-        QVariantList list;
-        mpv_node_list *entries = node->u.list;
-        for (int i = 0; i < entries->num; ++i) {
-            list.append(nodeToVariant(&entries->values[i]));
-        }
-        return list;
-    }
-    case MPV_FORMAT_NODE_MAP: {
-        QVariantMap map;
-        mpv_node_list *entries = node->u.list;
-        for (int i = 0; i < entries->num; ++i) {
-            map.insert(QString::fromUtf8(entries->keys[i]), nodeToVariant(&entries->values[i]));
-        }
-        return map;
-    }
-    default:
-        return QVariant();
-    }
-}
+constexpr int kMostFrozenEngines = 3;
 
 void wakeupCallback(void *ctx)
 {
@@ -83,6 +56,26 @@ bool usesVideoSurface()
 #else
     return false;
 #endif
+}
+
+#if defined(Q_OS_ANDROID)
+AndroidVideoSurface *surfaceFor(bool preview)
+{
+    return preview ? AndroidVideoSurface::preview() : AndroidVideoSurface::instance();
+}
+#endif
+
+MpvEngine *makeEngine(bool preview)
+{
+#if defined(Q_OS_ANDROID)
+    if (usesVideoSurface() && !RemoteMpvEngine::unavailable()) {
+        return new RemoteMpvEngine(preview ? RemoteMpvEngine::Preview
+                                           : RemoteMpvEngine::Playback);
+    }
+#else
+    Q_UNUSED(preview)
+#endif
+    return LocalMpvEngine::create();
 }
 
 const char *defaultHwdec()
@@ -181,11 +174,12 @@ QString prepareSubtitleFont()
 
 }
 
-MpvController::MpvController(QObject *parent)
+MpvController::MpvController(Role role, QObject *parent)
     : QObject(parent)
     , m_audioTracks(new TrackListModel(this))
     , m_subtitleTracks(new TrackListModel(this))
 {
+    m_previewMode = role == Role::Preview;
 #if defined(Q_OS_ANDROID)
     handOverJavaVm();
 #endif
@@ -207,18 +201,11 @@ MpvController::MpvController(QObject *parent)
     m_stopTimer.setInterval(4000);
     connect(&m_stopTimer, &QTimer::timeout, this, &MpvController::onStopTimedOut);
 
-#if defined(Q_OS_ANDROID)
-    if (usesVideoSurface()) {
-        connect(AndroidVideoSurface::instance(),
-                &AndroidVideoSurface::readyChanged, this, [this]() {
-            if (!AndroidVideoSurface::instance()->isReady()) {
-                detachVideoSurface();
-            } else if (m_fileLoaded) {
-                attachVideoSurface();
-            }
-        });
-    }
-#endif
+    m_firstPictureTimer.setSingleShot(true);
+    m_firstPictureTimer.setInterval(4000);
+    connect(&m_firstPictureTimer, &QTimer::timeout, this, &MpvController::onFirstPictureLate);
+
+    watchVideoSurface();
 
     m_ready = true;
     emit readyChanged();
@@ -226,38 +213,42 @@ MpvController::MpvController(QObject *parent)
 
 bool MpvController::createEngine()
 {
-    m_mpv = mpv_create();
-    if (!m_mpv) {
+    m_engine = makeEngine(m_previewMode);
+    if (!m_engine) {
         MM_LOG_E() << "mpv_create failed, playback unavailable";
         return false;
     }
 
-    mpv_set_option_string(m_mpv, "vo",
+    m_engine->setOptionString("vo",
                           usesVideoSurface() ? "null" : "libmpv");
-    mpv_set_option_string(m_mpv, "hwdec", defaultHwdec());
+    m_engine->setOptionString("hwdec", defaultHwdec());
 
     if (usesVideoSurface()) {
-        mpv_set_option_string(m_mpv, "vd-lavc-software-fallback", "no");
+        m_engine->setOptionString("hwdec-software-fallback", "no");
+        m_engine->setOptionString("gpu-context", "android");
+        m_engine->setOptionString("audio-channels", "stereo");
+        m_engine->setOptionString("demuxer-max-bytes", "64MiB");
+        m_engine->setOptionString("demuxer-max-back-bytes", "16MiB");
     }
 
-    mpv_set_option_string(m_mpv, "idle", "yes");
-    mpv_set_option_string(m_mpv, "keep-open", "yes");
-    mpv_set_option_string(m_mpv, "terminal", "no");
-    mpv_set_option_string(m_mpv, "config", "no");
-    mpv_set_option_string(m_mpv, "osc", "no");
-    mpv_set_option_string(m_mpv, "input-default-bindings", "no");
-    mpv_set_option_string(m_mpv, "input-vo-keyboard", "no");
-    mpv_set_option_string(m_mpv, "sub-auto", "no");
+    m_engine->setOptionString("idle", "yes");
+    m_engine->setOptionString("keep-open", "yes");
+    m_engine->setOptionString("terminal", "no");
+    m_engine->setOptionString("config", "no");
+    m_engine->setOptionString("osc", "no");
+    m_engine->setOptionString("input-default-bindings", "no");
+    m_engine->setOptionString("input-vo-keyboard", "no");
+    m_engine->setOptionString("sub-auto", "no");
 #ifdef Q_OS_WIN
-    mpv_set_option_string(m_mpv, "sub-file-paths", "Subs;Subtitles;Sub");
+    m_engine->setOptionString("sub-file-paths", "Subs;Subtitles;Sub");
 #else
-    mpv_set_option_string(m_mpv, "sub-file-paths", "Subs:subs:Subtitles:subtitles:Sub:sub");
+    m_engine->setOptionString("sub-file-paths", "Subs:subs:Subtitles:subtitles:Sub:sub");
 #endif
 
     if (SystemBridge::runningOnTelevision()) {
-        mpv_set_option_string(m_mpv, "audio-buffer", "0.5");
+        m_engine->setOptionString("audio-buffer", "0.5");
 
-        mpv_set_option_string(m_mpv, "profile", "fast");
+        m_engine->setOptionString("profile", "fast");
     }
 
 #if defined(Q_OS_ANDROID)
@@ -265,10 +256,10 @@ bool MpvController::createEngine()
     if (!configDir.isEmpty()) {
         MM_LOG_I() << "mpv config directory" << configDir
                    << "- an mpv.conf placed here is read at startup";
-        mpv_set_option_string(m_mpv, "config-dir", configDir.toUtf8().constData());
-        mpv_set_option_string(m_mpv, "config", "yes");
+        m_engine->setOptionString("config-dir", configDir.toUtf8().constData());
+        m_engine->setOptionString("config", "yes");
     }
-    mpv_set_option_string(m_mpv, "sub-font-provider", "none");
+    m_engine->setOptionString("sub-font-provider", "none");
 
     QString logRoot = externalConfigRoot();
     if (logRoot.isEmpty()) {
@@ -277,32 +268,34 @@ bool MpvController::createEngine()
     const QString logDir = logRoot + QStringLiteral("/logs");
     if (QDir().mkpath(logDir)) {
         const QString logFile = logDir + QStringLiteral("/mpv.log");
-        mpv_set_option_string(m_mpv, "log-file", logFile.toUtf8().constData());
+        m_engine->setOptionString("log-file", logFile.toUtf8().constData());
         MM_LOG_I() << "mpv writes its detailed log to" << logFile;
     }
 #endif
 
-    const int rc = mpv_initialize(m_mpv);
+    const int rc = m_engine->initialize();
     if (rc < 0) {
         MM_LOG_E() << "mpv_initialize failed:" << mpv_error_string(rc);
-        mpv_destroy(m_mpv);
-        m_mpv = nullptr;
+        delete m_engine;
+        m_engine = nullptr;
         return false;
     }
 
-    mpv_request_log_messages(m_mpv, "info");
+    m_engine->requestLogMessages("info");
     observeProperties();
-    mpv_set_wakeup_callback(m_mpv, wakeupCallback, this);
-    mpv_hook_add(m_mpv, kPreloadedHookId, "on_preloaded", 0);
+    m_engine->setWakeupCallback(wakeupCallback, this);
+    m_engine->hookAdd(kPreloadedHookId, "on_preloaded", 0);
     startRequestThread();
 
-    char *effectiveHwdec = mpv_get_property_string(m_mpv, "hwdec");
-    MM_LOG_I() << "mpv initialised, hwdec requested" << defaultHwdec()
-               << "in effect"
-               << (effectiveHwdec ? effectiveHwdec : "<unreadable>");
-    if (effectiveHwdec) {
-        mpv_free(effectiveHwdec);
-    }
+    const bool remote = m_engine->remote();
+    post([remote](MpvEngine *engine) {
+        QByteArray effectiveHwdec;
+        if (!engine->getString("hwdec", &effectiveHwdec)) {
+            effectiveHwdec = "<unreadable>";
+        }
+        MM_LOG_I() << "mpv initialised" << (remote ? "in a player process of its own" : "")
+                   << "- hwdec requested" << defaultHwdec() << "in effect" << effectiveHwdec;
+    });
     return true;
 }
 
@@ -310,15 +303,18 @@ MpvController::~MpvController()
 {
     releaseAudioFocus();
 
-    if (!m_mpv) {
+    if (!m_engine) {
         return;
     }
-    mpv_set_wakeup_callback(m_mpv, nullptr, nullptr);
+    m_engine->setWakeupCallback(nullptr, nullptr);
+    if (m_engine->remote()) {
+        m_engine->abandon();
+    }
     if (!stopRequestThread()) {
         return;
     }
-    mpv_terminate_destroy(m_mpv);
-    m_mpv = nullptr;
+    delete m_engine;
+    m_engine = nullptr;
     MM_LOG_I() << "mpv terminated";
 }
 
@@ -486,51 +482,51 @@ void MpvController::pauseForBackground()
 
 mpv_handle *MpvController::handle() const
 {
-    return m_mpv;
+    return m_engine ? m_engine->rawHandle() : nullptr;
 }
 
 void MpvController::observeProperties()
 {
-    mpv_observe_property(m_mpv, 0, "pause", MPV_FORMAT_FLAG);
-    mpv_observe_property(m_mpv, 0, "time-pos", MPV_FORMAT_DOUBLE);
-    mpv_observe_property(m_mpv, 0, "duration", MPV_FORMAT_DOUBLE);
-    mpv_observe_property(m_mpv, 0, "speed", MPV_FORMAT_DOUBLE);
-    mpv_observe_property(m_mpv, 0, "volume", MPV_FORMAT_DOUBLE);
-    mpv_observe_property(m_mpv, 0, "mute", MPV_FORMAT_FLAG);
-    mpv_observe_property(m_mpv, 0, "paused-for-cache", MPV_FORMAT_FLAG);
-    mpv_observe_property(m_mpv, 0, "eof-reached", MPV_FORMAT_FLAG);
-    mpv_observe_property(m_mpv, 0, "media-title", MPV_FORMAT_STRING);
-    mpv_observe_property(m_mpv, 0, "sub-text", MPV_FORMAT_STRING);
-    mpv_observe_property(m_mpv, 0, "hwdec-current", MPV_FORMAT_STRING);
-    mpv_observe_property(m_mpv, 0, "video-codec", MPV_FORMAT_STRING);
-    mpv_observe_property(m_mpv, 0, "audio-codec-name", MPV_FORMAT_STRING);
-    mpv_observe_property(m_mpv, 0, "file-format", MPV_FORMAT_STRING);
-    mpv_observe_property(m_mpv, 0, "width", MPV_FORMAT_INT64);
-    mpv_observe_property(m_mpv, 0, "height", MPV_FORMAT_INT64);
-    mpv_observe_property(m_mpv, 0, "dwidth", MPV_FORMAT_INT64);
-    mpv_observe_property(m_mpv, 0, "dheight", MPV_FORMAT_INT64);
-    mpv_observe_property(m_mpv, 0, "video-params/primaries", MPV_FORMAT_STRING);
-    mpv_observe_property(m_mpv, 0, "video-params/gamma", MPV_FORMAT_STRING);
-    mpv_observe_property(m_mpv, 0, "track-list", MPV_FORMAT_NODE);
-    mpv_observe_property(m_mpv, 0, "aid", MPV_FORMAT_INT64);
-    mpv_observe_property(m_mpv, 0, "sid", MPV_FORMAT_INT64);
-    mpv_observe_property(m_mpv, 0, "sub-delay", MPV_FORMAT_DOUBLE);
-    mpv_observe_property(m_mpv, 0, "audio-delay", MPV_FORMAT_DOUBLE);
-    mpv_observe_property(m_mpv, 0, "video-aspect-override", MPV_FORMAT_STRING);
-    mpv_observe_property(m_mpv, 0, "panscan", MPV_FORMAT_DOUBLE);
-    mpv_observe_property(m_mpv, 0, "video-zoom", MPV_FORMAT_DOUBLE);
-    mpv_observe_property(m_mpv, 0, "video-pan-x", MPV_FORMAT_DOUBLE);
-    mpv_observe_property(m_mpv, 0, "video-pan-y", MPV_FORMAT_DOUBLE);
+    m_engine->observeProperty(0, "pause", MPV_FORMAT_FLAG);
+    m_engine->observeProperty(0, "time-pos", MPV_FORMAT_DOUBLE);
+    m_engine->observeProperty(0, "duration", MPV_FORMAT_DOUBLE);
+    m_engine->observeProperty(0, "speed", MPV_FORMAT_DOUBLE);
+    m_engine->observeProperty(0, "volume", MPV_FORMAT_DOUBLE);
+    m_engine->observeProperty(0, "mute", MPV_FORMAT_FLAG);
+    m_engine->observeProperty(0, "paused-for-cache", MPV_FORMAT_FLAG);
+    m_engine->observeProperty(0, "eof-reached", MPV_FORMAT_FLAG);
+    m_engine->observeProperty(0, "media-title", MPV_FORMAT_STRING);
+    m_engine->observeProperty(0, "sub-text", MPV_FORMAT_STRING);
+    m_engine->observeProperty(0, "hwdec-current", MPV_FORMAT_STRING);
+    m_engine->observeProperty(0, "video-codec", MPV_FORMAT_STRING);
+    m_engine->observeProperty(0, "audio-codec-name", MPV_FORMAT_STRING);
+    m_engine->observeProperty(0, "file-format", MPV_FORMAT_STRING);
+    m_engine->observeProperty(0, "width", MPV_FORMAT_INT64);
+    m_engine->observeProperty(0, "height", MPV_FORMAT_INT64);
+    m_engine->observeProperty(0, "dwidth", MPV_FORMAT_INT64);
+    m_engine->observeProperty(0, "dheight", MPV_FORMAT_INT64);
+    m_engine->observeProperty(0, "video-params/primaries", MPV_FORMAT_STRING);
+    m_engine->observeProperty(0, "video-params/gamma", MPV_FORMAT_STRING);
+    m_engine->observeProperty(0, "track-list", MPV_FORMAT_NODE);
+    m_engine->observeProperty(0, "aid", MPV_FORMAT_INT64);
+    m_engine->observeProperty(0, "sid", MPV_FORMAT_INT64);
+    m_engine->observeProperty(0, "sub-delay", MPV_FORMAT_DOUBLE);
+    m_engine->observeProperty(0, "audio-delay", MPV_FORMAT_DOUBLE);
+    m_engine->observeProperty(0, "video-aspect-override", MPV_FORMAT_STRING);
+    m_engine->observeProperty(0, "panscan", MPV_FORMAT_DOUBLE);
+    m_engine->observeProperty(0, "video-zoom", MPV_FORMAT_DOUBLE);
+    m_engine->observeProperty(0, "video-pan-x", MPV_FORMAT_DOUBLE);
+    m_engine->observeProperty(0, "video-pan-y", MPV_FORMAT_DOUBLE);
 }
 
 void MpvController::drainEvents()
 {
-    if (!m_mpv) {
+    if (!m_engine) {
         return;
     }
 
     while (true) {
-        mpv_event *event = mpv_wait_event(m_mpv, 0);
+        mpv_event *event = m_engine->waitEvent(0);
         if (!event || event->event_id == MPV_EVENT_NONE) {
             break;
         }
@@ -545,7 +541,7 @@ void MpvController::drainEvents()
                 addPreloadedSubtitles();
             }
             const uint64_t hookId = hook->id;
-            post([hookId](mpv_handle *mpv) { mpv_hook_continue(mpv, hookId); });
+            post([hookId](MpvEngine *engine) { engine->hookContinue(hookId); });
             break;
         }
         case MPV_EVENT_FILE_LOADED:
@@ -554,11 +550,15 @@ void MpvController::drainEvents()
             m_endReached = false;
             MM_LOG_I() << "file loaded, duration" << m_duration << "title" << m_mediaTitle;
             m_stillPosition = -1.0;
-            post([counts = m_dropCounts](mpv_handle *) {
+            post([counts = m_dropCounts](MpvEngine *) {
                 counts->vo = 0;
                 counts->decoder = 0;
             });
             m_healthTimer.start();
+            if (usesVideoSurface() && m_playbackWanted && !m_pictureSeen) {
+                m_firstPictureWaits = 0;
+                m_firstPictureTimer.start();
+            }
             emit fileLoadedChanged();
             emit endReachedChanged();
             setLoading(false);
@@ -582,6 +582,7 @@ void MpvController::drainEvents()
             }
 
             if (endFile->reason == MPV_END_FILE_REASON_ERROR) {
+                setStartState(false, QString());
                 QString reason = QString::fromUtf8(mpv_error_string(endFile->error));
                 MM_LOG_E() << "playback ended with error:" << reason;
 
@@ -609,11 +610,26 @@ void MpvController::drainEvents()
             break;
         }
         case MPV_EVENT_PLAYBACK_RESTART:
+            if (usesVideoSurface() && m_playbackWanted && !m_pictureSeen) {
+                m_pictureSeen = true;
+                m_retries = 0;
+                m_firstPictureTimer.stop();
+                MM_LOG_I() << "first picture is up at" << m_position;
+                runDeferredSeek();
+                setStartState(false, QString());
+            }
             publishTransportState();
             break;
         case MPV_EVENT_LOG_MESSAGE: {
             mpv_event_log_message *message = static_cast<mpv_event_log_message *>(event->data);
             const QString text = QString::fromUtf8(message->text).trimmed();
+
+            if (usesVideoSurface()
+                && text.contains(QLatin1String("Software decoding fallback is disabled"))
+                && m_playbackWanted && !m_currentPath.isEmpty()
+                && !m_softwarePaths.contains(m_currentPath)) {
+                QTimer::singleShot(0, this, &MpvController::reopenInSoftware);
+            }
 
             QString key = QString::fromUtf8(message->prefix) + text;
             key.removeIf([](QChar c) { return c.isDigit(); });
@@ -783,7 +799,7 @@ void MpvController::handlePropertyChange(void *eventProperty)
         m_videoGamma = QString::fromUtf8(*static_cast<char **>(prop->data));
         updateHdr();
     } else if (name == QLatin1String("track-list")) {
-        rebuildTrackLists(nodeToVariant(static_cast<mpv_node *>(prop->data)));
+        rebuildTrackLists(mpvNodeToVariant(static_cast<mpv_node *>(prop->data)));
     } else if (name == QLatin1String("aid")) {
         const qint64 value = *static_cast<qint64 *>(prop->data);
         if (m_audioTrackId != value) {
@@ -950,7 +966,7 @@ void MpvController::flushMpvRepeats()
 
 void MpvController::giveUpOnOpening()
 {
-    if (!m_mpv || !m_playbackWanted || m_paused || m_position > 0.25) {
+    if (!m_engine || !m_playbackWanted || m_paused || m_position > 0.25) {
         return;
     }
 
@@ -965,7 +981,7 @@ void MpvController::giveUpOnOpening()
                                : tr("nothing was played");
 
     if (usesVideoSurface()) {
-        markPlayerStuck(QStringLiteral("nothing played in 20 s"));
+        recoverFromFreeze(QStringLiteral("nothing played in 20 s"), m_position);
         return;
     }
 
@@ -1011,16 +1027,21 @@ QString MpvController::stuckMessage() const
 
 void MpvController::onStopTimedOut()
 {
-    if (!usesVideoSurface() || m_playbackWanted) {
+    if (!usesVideoSurface()) {
         return;
     }
-    markPlayerStuck(QStringLiteral("a stop did not finish in %1 ms")
-                        .arg(m_stopTimer.interval()));
+    const QString why = QStringLiteral("a stop did not finish in %1 ms")
+                            .arg(m_stopTimer.interval());
+    if (m_playbackWanted) {
+        recoverFromFreeze(why, 0.0);
+        return;
+    }
+    replaceEngine(why);
 }
 
 void MpvController::logPlaybackHealth()
 {
-    if (!m_mpv || m_paused) {
+    if (!m_engine || m_paused) {
         m_stillPosition = -1.0;
         return;
     }
@@ -1030,27 +1051,28 @@ void MpvController::logPlaybackHealth()
             m_stillPosition = m_position;
             m_stillFor.restart();
         } else if (m_stillFor.elapsed() >= 20000) {
-            markPlayerStuck(QStringLiteral("playback stood still at %1 s for 20 s")
-                                .arg(m_position));
+            recoverFromFreeze(QStringLiteral("playback stood still at %1 s for 20 s")
+                                  .arg(m_position),
+                              m_position);
             return;
         }
     }
 
-    post([counts = m_dropCounts](mpv_handle *mpv) {
-        auto readDouble = [mpv](const char *name) {
+    post([counts = m_dropCounts](MpvEngine *engine) {
+        auto readDouble = [engine](const char *name) {
             double value = 0.0;
-            if (mpv_get_property(mpv, name, MPV_FORMAT_DOUBLE, &value) < 0) {
+            if (engine->getDouble(name, &value) < 0) {
                 return 0.0;
             }
             return value;
         };
 
-        auto readCount = [mpv](const char *name) {
-            qint64 value = 0;
-            if (mpv_get_property(mpv, name, MPV_FORMAT_INT64, &value) < 0) {
+        auto readCount = [engine](const char *name) {
+            int64_t value = 0;
+            if (engine->getInt64(name, &value) < 0) {
                 return qint64(0);
             }
-            return value;
+            return qint64(value);
         };
 
         const qint64 voDrops = readCount("frame-drop-count");
@@ -1112,7 +1134,7 @@ void MpvController::updateVideoResolution()
             m_surfacePixels = pixels;
             MM_LOG_I() << "video surface shaped to" << shape << "holding" << pixels
                        << "pixels";
-            AndroidVideoSurface::instance()->setVideoSize(shape, pixels);
+            surfaceFor(m_previewMode)->setVideoSize(shape, pixels);
         }
     }
 #endif
@@ -1181,16 +1203,16 @@ bool MpvController::stopRequestThread()
     return true;
 }
 
-void MpvController::post(std::function<void(mpv_handle *)> work)
+void MpvController::post(std::function<void(MpvEngine *)> work)
 {
-    if (!m_mpv || !m_requestWorker) {
+    if (!m_engine || !m_requestWorker) {
         return;
     }
-    mpv_handle *mpv = m_mpv;
-    QMetaObject::invokeMethod(m_requestWorker, [mpv, work = std::move(work)]() {
+    MpvEngine *engine = m_engine;
+    QMetaObject::invokeMethod(m_requestWorker, [engine, work = std::move(work)]() {
         QElapsedTimer took;
         took.start();
-        work(mpv);
+        work(engine);
         if (took.elapsed() > 1000) {
             MM_LOG_W() << "mpv took" << took.elapsed() << "ms to answer a request";
         }
@@ -1210,7 +1232,7 @@ void MpvController::command(const QVariantList &args)
         words.append(arg.toString());
     }
     const QString logged = StreamProtocol::withoutToken(words.join(QLatin1Char(' ')));
-    post([storage, logged](mpv_handle *mpv) {
+    post([storage, logged](MpvEngine *engine) {
         QVector<const char *> argv;
         argv.reserve(storage.size() + 1);
         for (const QByteArray &item : storage) {
@@ -1218,7 +1240,7 @@ void MpvController::command(const QVariantList &args)
         }
         argv.append(nullptr);
 
-        const int rc = mpv_command(mpv, argv.data());
+        const int rc = engine->command(argv.data());
         if (rc < 0) {
             MM_LOG_E() << "mpv command failed:" << logged << mpv_error_string(rc);
         }
@@ -1229,8 +1251,8 @@ void MpvController::setPropertyVariant(const QString &name, const QVariant &valu
 {
     const QByteArray nameUtf8 = name.toUtf8();
     const QByteArray valueUtf8 = value.toString().toUtf8();
-    post([nameUtf8, valueUtf8](mpv_handle *mpv) {
-        const int rc = mpv_set_property_string(mpv, nameUtf8.constData(), valueUtf8.constData());
+    post([nameUtf8, valueUtf8](MpvEngine *engine) {
+        const int rc = engine->setPropertyString(nameUtf8.constData(), valueUtf8.constData());
         if (rc < 0) {
             MM_LOG_E() << "mpv set property failed:" << nameUtf8 << valueUtf8
                        << mpv_error_string(rc);
@@ -1243,6 +1265,18 @@ bool MpvController::fileLoaded() const { return m_fileLoaded; }
 bool MpvController::buffering() const { return m_buffering; }
 bool MpvController::endReached() const { return m_endReached; }
 bool MpvController::playerStuck() const { return m_engineStuck; }
+bool MpvController::waitingForPicture() const { return m_waitingForPicture; }
+QString MpvController::startNote() const { return m_startNote; }
+
+void MpvController::setStartState(bool waiting, const QString &note)
+{
+    if (m_waitingForPicture == waiting && m_startNote == note) {
+        return;
+    }
+    m_waitingForPicture = waiting;
+    m_startNote = note;
+    emit startStateChanged();
+}
 
 bool MpvController::allowUnsupportedPicture() const
 {
@@ -1398,11 +1432,40 @@ bool MpvController::renderContextActive() const
     return m_renderContextActive;
 }
 
+void MpvController::setSurfaceFrame(int x, int y, int width, int height)
+{
+#if defined(Q_OS_ANDROID)
+    if (usesVideoSurface()) {
+        if (!m_previewMode) {
+            return;
+        }
+        if (width > 0 && height > 0) {
+            m_previewFrame = QRect(x, y, width, height);
+            AndroidVideoSurface::preview()->show(m_previewFrame);
+            MM_LOG_I() << "preview surface shown at" << x << y << width << "x" << height;
+        } else {
+            AndroidVideoSurface::preview()->hide();
+            MM_LOG_I() << "preview surface removed";
+        }
+    }
+#else
+    Q_UNUSED(x)
+    Q_UNUSED(y)
+    Q_UNUSED(width)
+    Q_UNUSED(height)
+#endif
+}
+
+bool MpvController::usesSystemSurface() const
+{
+    return usesVideoSurface();
+}
+
 void MpvController::setSurfaceAspect(double aspect, bool fill)
 {
 #if defined(Q_OS_ANDROID)
     if (usesVideoSurface()) {
-        AndroidVideoSurface::instance()->setAspect(aspect, fill);
+        surfaceFor(m_previewMode)->setAspect(aspect, fill);
         return;
     }
 #endif
@@ -1413,7 +1476,7 @@ void MpvController::setSurfaceAspect(double aspect, bool fill)
 bool MpvController::attachVideoSurface()
 {
 #if defined(Q_OS_ANDROID)
-    if (!m_mpv) {
+    if (!m_engine) {
         return false;
     }
 
@@ -1421,7 +1484,7 @@ bool MpvController::attachVideoSurface()
         return true;
     }
 
-    AndroidVideoSurface *surface = AndroidVideoSurface::instance();
+    AndroidVideoSurface *surface = surfaceFor(m_previewMode);
 
     const qint64 handle = surface->windowHandle();
     if (handle == 0) {
@@ -1429,16 +1492,15 @@ bool MpvController::attachVideoSurface()
         return false;
     }
 
-    post([handle](mpv_handle *mpv) {
-        int64_t wid = handle;
-        int rc = mpv_set_option(mpv, "wid", MPV_FORMAT_INT64, &wid);
+    post([handle](MpvEngine *engine) {
+        int rc = engine->setWindow(handle);
         if (rc < 0) {
             MM_LOG_E() << "mpv would not take the video surface:"
                        << mpv_error_string(rc);
             return;
         }
 
-        rc = mpv_set_property_string(mpv, "vo", "mediacodec_embed");
+        rc = engine->setPropertyString("vo", "mediacodec_embed");
         if (rc < 0) {
             MM_LOG_E() << "mpv would not switch to the embedded output:"
                        << mpv_error_string(rc);
@@ -1464,13 +1526,13 @@ void MpvController::detachVideoSurface()
 
     m_videoSurfaceAttached = false;
 
-    if (!m_mpv || !m_requestWorker) {
+    if (!m_engine || !m_requestWorker) {
         return;
     }
-    AndroidVideoSurface *surface = AndroidVideoSurface::instance();
+    AndroidVideoSurface *surface = surfaceFor(m_previewMode);
     surface->holdRelease();
-    post([surface](mpv_handle *mpv) {
-        mpv_set_property_string(mpv, "vo", "null");
+    post([surface](MpvEngine *engine) {
+        engine->setPropertyString("vo", "null");
         MM_LOG_I() << "video output detached from the system surface";
         QMetaObject::invokeMethod(surface, [surface]() { surface->letGo(); },
                                   Qt::QueuedConnection);
@@ -1492,8 +1554,16 @@ void MpvController::openPath(const QString &path)
         return;
     }
 
+    if (m_engine && !m_engine->alive() && !m_retrying) {
+        replaceEngine(QStringLiteral("its player process had ended"));
+    }
+
     m_playbackWanted = true;
-    m_stopTimer.stop();
+    if (!(m_stopTimer.isActive() && m_engine && m_engine->remote())) {
+        m_stopTimer.stop();
+    } else {
+        MM_LOG_I() << "the last stop has not finished yet, still watching it";
+    }
 
     if (m_fileLoaded) {
         MM_LOG_I() << "stopping the file already open before loading the next one";
@@ -1511,6 +1581,14 @@ void MpvController::openPath(const QString &path)
     m_startTimer.start();
 
     if (usesVideoSurface()) {
+#if defined(Q_OS_ANDROID)
+        if (!surfaceFor(m_previewMode)->isReady()) {
+            MM_LOG_I() << "video surface not ready yet, deferring open of"
+                       << StreamProtocol::withoutToken(path);
+            m_pendingOpenPath = path;
+            return;
+        }
+#endif
         if (!attachVideoSurface()) {
             setLoading(false);
             m_openInFlight = false;
@@ -1544,6 +1622,16 @@ void MpvController::openPath(const QString &path)
     m_subtitlesPath.clear();
     m_pendingSubtitles.clear();
 
+    if (usesVideoSurface()) {
+        setStartState(true, m_retrying ? m_startNote : QString());
+        m_currentPath = path;
+        m_currentSubtitles = m_subtitlesForLoad;
+        m_pictureSeen = false;
+        m_firstPictureTimer.stop();
+        m_deferredSeek = m_nextStart > 0.0 ? m_nextStart : -1.0;
+        m_nextStart = 0.0;
+    }
+
     if (m_nextStart > 0.0 || m_startApplied) {
         setPropertyVariant(QStringLiteral("start"),
                            m_nextStart > 0.0 ? QString::number(m_nextStart, 'f', 1)
@@ -1551,6 +1639,23 @@ void MpvController::openPath(const QString &path)
         m_startApplied = m_nextStart > 0.0;
     }
     m_nextStart = 0.0;
+
+    if (usesVideoSurface()) {
+        const bool software = m_softwarePaths.contains(path);
+        if (software != m_softwareActive) {
+            m_softwareActive = software;
+            setPropertyVariant(QStringLiteral("hwdec-software-fallback"),
+                               software ? QStringLiteral("yes") : QStringLiteral("no"));
+            setPropertyVariant(QStringLiteral("hwdec"),
+                               software ? QStringLiteral("no")
+                                        : QString::fromLatin1(defaultHwdec()));
+            setPropertyVariant(QStringLiteral("vo"),
+                               software ? QStringLiteral("gpu")
+                                        : QStringLiteral("mediacodec_embed"));
+            MM_LOG_I() << (software ? "decoding in software, drawn by mpv"
+                                    : "back to hardware decoding");
+        }
+    }
 
     applyCacheProfile(path);
     if (m_previewMode) {
@@ -1573,8 +1678,224 @@ void MpvController::configureForPreview()
     m_previewMode = true;
     m_subtitlesOnByDefault = false;
     setMuted(true);
-    setPropertyVariant(QStringLiteral("hr-seek"), QStringLiteral("no"));
-    MM_LOG_I() << "player configured for hover previews: muted, no subtitles, keyframe seeks";
+    if (!usesVideoSurface()) {
+        setPropertyVariant(QStringLiteral("hr-seek"), QStringLiteral("no"));
+    }
+    watchVideoSurface();
+    MM_LOG_I() << "player configured for previews: muted, no subtitles,"
+               << (usesVideoSurface() ? "own video surface, precise seeks" : "keyframe seeks");
+}
+
+void MpvController::watchVideoSurface()
+{
+#if defined(Q_OS_ANDROID)
+    if (!usesVideoSurface()) {
+        return;
+    }
+    if (m_surfaceWatch) {
+        disconnect(m_surfaceWatch);
+    }
+    m_surfaceWatch = connect(surfaceFor(m_previewMode), &AndroidVideoSurface::readyChanged,
+                             this, &MpvController::onVideoSurfaceReadyChanged);
+#endif
+}
+
+void MpvController::runDeferredSeek()
+{
+    if (m_deferredSeek <= 0.0) {
+        return;
+    }
+    const double target = m_deferredSeek;
+    m_deferredSeek = -1.0;
+    MM_LOG_I() << "jumping to" << target << "now the decoder has its first picture";
+    command({QStringLiteral("seek"), QString::number(target, 'f', 3),
+             QStringLiteral("absolute")});
+}
+
+void MpvController::onFirstPictureLate()
+{
+    if (!usesVideoSurface() || !m_playbackWanted || m_pictureSeen || !m_fileLoaded) {
+        return;
+    }
+    if ((m_buffering || m_paused) && m_firstPictureWaits < 5) {
+        ++m_firstPictureWaits;
+        m_firstPictureTimer.start();
+        return;
+    }
+    recoverFromFreeze(QStringLiteral("no picture %1 ms after the file loaded")
+                          .arg(m_firstPictureTimer.interval()),
+                      0.0);
+}
+
+void MpvController::recoverFromFreeze(const QString &why, double resumeAt)
+{
+    const int limit = m_previewMode ? 1 : 2;
+    const QString path = m_currentPath;
+    const QVariantList subtitles = m_currentSubtitles;
+    const double target = m_deferredSeek > 0.0 ? m_deferredSeek : resumeAt;
+    const bool wanted = m_playbackWanted;
+
+    const bool fresh = replaceEngine(why);
+
+    if (!wanted || path.isEmpty()) {
+        return;
+    }
+    if (!fresh || m_retries >= limit || m_frozenAlive->load() >= kMostFrozenEngines) {
+        MM_LOG_E() << "the decoder froze" << m_retries + 1 << "times on"
+                   << StreamProtocol::withoutToken(path) << "- giving up on it";
+        m_playbackWanted = false;
+        m_retries = 0;
+        setLoading(false);
+        setStartState(false, QString());
+        releaseAudioFocus();
+        if (m_transportControls) {
+            m_transportControls->setActive(false);
+        }
+        emit playbackFailed(tr("This video would not start on this device. "
+                               "Try it again, or pick another one."));
+        return;
+    }
+
+    ++m_retries;
+    setStartState(true, tr("Taking longer than usual, trying again (%1 of %2)")
+                            .arg(m_retries + 1).arg(limit + 1));
+    MM_LOG_I() << "trying again on a fresh engine, attempt" << m_retries << "of" << limit
+               << (target > 0.0 ? QStringLiteral("from %1 s").arg(target)
+                                : QStringLiteral("from the start"));
+    m_retrying = true;
+    setSubtitlesForNextOpen(path, subtitles);
+    m_nextStart = target;
+    openPath(path);
+    m_retrying = false;
+}
+
+void MpvController::reopenInSoftware()
+{
+    if (!m_playbackWanted || m_currentPath.isEmpty() || m_softwarePaths.contains(m_currentPath)) {
+        return;
+    }
+    const QString path = m_currentPath;
+    const double resumeAt = m_deferredSeek > 0.0 ? m_deferredSeek : m_position;
+    MM_LOG_W() << "the television's decoder will not take this video, playing it"
+               << "decoded in software instead:" << StreamProtocol::withoutToken(path);
+    m_softwarePaths.insert(path);
+    setStartState(true, tr("This TV cannot decode this video itself, "
+                           "switching to a slower way to play it"));
+    m_retrying = true;
+    setSubtitlesForNextOpen(path, m_currentSubtitles);
+    m_nextStart = resumeAt > 1.0 ? resumeAt : 0.0;
+    openPath(path);
+    m_retrying = false;
+}
+
+bool MpvController::replaceEngine(const QString &why)
+{
+    ++m_abandonedEngines;
+    MM_LOG_W() << "replacing the frozen player engine (" << why << "), engines replaced:"
+               << m_abandonedEngines;
+
+    m_firstPictureTimer.stop();
+    m_stopTimer.stop();
+    m_startTimer.stop();
+    m_healthTimer.stop();
+
+    MpvEngine *const frozen = m_engine;
+    QThread *const frozenThread = m_requestThread;
+    QObject *const frozenWorker = m_requestWorker;
+    const bool remote = frozen && frozen->remote();
+    if (frozen) {
+        frozen->setWakeupCallback(nullptr, nullptr);
+        frozen->abandon();
+    }
+    m_requestThread = nullptr;
+    m_requestWorker = nullptr;
+    m_engine = nullptr;
+
+    m_videoSurfaceAttached = false;
+    m_networkCacheProfile = false;
+    m_softwareActive = false;
+    m_startApplied = false;
+    m_pictureSeen = false;
+    m_openInFlight = false;
+    m_pendingOpenPath.clear();
+    m_stillPosition = -1.0;
+    if (m_fileLoaded) {
+        m_fileLoaded = false;
+        emit fileLoadedChanged();
+    }
+    if (m_engineStuck) {
+        m_engineStuck = false;
+        emit playerStuckChanged();
+    }
+
+    bool swapped = true;
+#if defined(Q_OS_ANDROID)
+    if (remote) {
+        surfaceFor(m_previewMode)->cutOffDeadDecoder();
+    } else {
+        swapped = surfaceFor(m_previewMode)->retire();
+    }
+#else
+    Q_UNUSED(remote)
+#endif
+
+    if (frozen) {
+        const auto alive = m_frozenAlive;
+        alive->fetch_add(1);
+        if (frozenThread) {
+            frozenThread->quit();
+        }
+        std::thread([frozen, frozenThread, frozenWorker, alive]() {
+            QElapsedTimer took;
+            took.start();
+            if (frozenThread) {
+                frozenThread->wait();
+            }
+            delete frozen;
+            delete frozenWorker;
+            delete frozenThread;
+            const int left = alive->fetch_sub(1) - 1;
+            MM_LOG_I() << "a replaced player engine shut down after" << took.elapsed()
+                       << "ms, its memory is freed; still shutting down:" << left;
+        }).detach();
+    }
+
+    if (!createEngine()) {
+        MM_LOG_E() << "a fresh engine could not be made, playback is unavailable";
+        m_ready = false;
+        emit readyChanged();
+        return false;
+    }
+    const bool muted = m_muted;
+    if (m_previewMode) {
+        configureForPreview();
+    }
+    setVolume(m_volume);
+    setMuted(muted);
+    if (!m_subtitleStyle.isEmpty()) {
+        applySubtitleStyle(m_subtitleStyle);
+    }
+    return swapped;
+}
+
+void MpvController::onVideoSurfaceReadyChanged()
+{
+#if defined(Q_OS_ANDROID)
+    if (!surfaceFor(m_previewMode)->isReady()) {
+        detachVideoSurface();
+        return;
+    }
+    if (m_fileLoaded) {
+        attachVideoSurface();
+        return;
+    }
+    if (!m_pendingOpenPath.isEmpty()) {
+        const QString pending = m_pendingOpenPath;
+        m_pendingOpenPath.clear();
+        MM_LOG_I() << "video surface ready, opening" << StreamProtocol::withoutToken(pending);
+        openPath(pending);
+    }
+#endif
 }
 
 void MpvController::applyCacheProfile(const QString &path)
@@ -1587,11 +1908,13 @@ void MpvController::applyCacheProfile(const QString &path)
     m_networkCacheProfile = network;
 
     if (network) {
+        const QString cacheSize = usesVideoSurface() ? QStringLiteral("64MiB")
+                                                     : QStringLiteral("150MiB");
         setPropertyVariant(QStringLiteral("cache"), QStringLiteral("yes"));
-        setPropertyVariant(QStringLiteral("demuxer-max-bytes"), QStringLiteral("150MiB"));
+        setPropertyVariant(QStringLiteral("demuxer-max-bytes"), cacheSize);
         setPropertyVariant(QStringLiteral("demuxer-readahead-secs"), 20);
         setPropertyVariant(QStringLiteral("network-timeout"), 15);
-        MM_LOG_I() << "network cache profile on: cache yes, 150 MiB, 20 s read-ahead";
+        MM_LOG_I() << "network cache profile on: cache yes," << cacheSize << ", 20 s read-ahead";
     } else {
         setPropertyVariant(QStringLiteral("cache"), QStringLiteral("auto"));
         setPropertyVariant(QStringLiteral("demuxer-readahead-secs"), 1);
@@ -1635,29 +1958,25 @@ void MpvController::addPreloadedSubtitles()
 
 void MpvController::pickPreloadedSubtitle()
 {
-    if (!m_mpv || !m_pickPreloadedSubtitle) {
+    if (!m_engine || !m_pickPreloadedSubtitle) {
         return;
     }
     m_pickPreloadedSubtitle = false;
 
     const QString firstPreloaded = m_firstPreloadedSubtitle;
-    post([firstPreloaded](mpv_handle *mpv) {
-        char *sid = mpv_get_property_string(mpv, "sid");
-        const bool nothingShowing = sid == nullptr || qstrcmp(sid, "no") == 0;
-        if (sid) {
-            mpv_free(sid);
-        }
+    post([firstPreloaded](MpvEngine *engine) {
+        QByteArray sid;
+        const bool nothingShowing = !engine->getString("sid", &sid) || sid == "no";
         if (!nothingShowing) {
             return;
         }
 
-        mpv_node node;
-        if (mpv_get_property(mpv, "track-list", MPV_FORMAT_NODE, &node) < 0) {
+        QVariant trackList;
+        if (!engine->getVariant("track-list", &trackList)) {
             MM_LOG_W() << "could not read the track list to switch a subtitle on";
             return;
         }
-        const QVariantList tracks = nodeToVariant(&node).toList();
-        mpv_free_node_contents(&node);
+        const QVariantList tracks = trackList.toList();
 
         qint64 chosen = -1;
         QString chosenTitle;
@@ -1684,29 +2003,34 @@ void MpvController::pickPreloadedSubtitle()
         MM_LOG_I() << "subtitles are on and none was showing - switching on" << chosenTitle
                    << "track" << chosen;
         const QByteArray value = QByteArray::number(chosen);
-        mpv_set_property_string(mpv, "sid", value.constData());
+        engine->setPropertyString("sid", value.constData());
     });
 }
 
 void MpvController::stop()
 {
+    const bool openSent = m_openInFlight && m_pendingOpenPath.isEmpty();
     m_pendingOpenPath.clear();
+    m_deferredSeek = -1.0;
+    m_retries = 0;
+    m_firstPictureTimer.stop();
     m_subtitlesPath.clear();
     m_pendingSubtitles.clear();
     m_subtitlesForLoad.clear();
 
-    const bool wasActive = m_fileLoaded || m_openInFlight;
+    const bool wasActive = m_fileLoaded || openSent;
     m_playbackWanted = false;
     m_startTimer.stop();
     m_healthTimer.stop();
     m_stillPosition = -1.0;
-    if (wasActive && usesVideoSurface() && m_mpv) {
+    if (wasActive && usesVideoSurface() && m_engine) {
         m_stopTimer.start();
     }
 
     m_openInFlight = false;
     setLoading(false);
     MM_LOG_I() << "stop requested at" << m_position;
+    setStartState(false, QString());
     releaseAudioFocus();
     if (m_transportControls) {
         m_transportControls->setActive(false);
@@ -1742,6 +2066,11 @@ void MpvController::seekRelative(double seconds)
 
 void MpvController::seekAbsolute(double seconds)
 {
+    if (usesVideoSurface() && m_playbackWanted && !m_pictureSeen) {
+        m_deferredSeek = seconds;
+        MM_LOG_I() << "seek to" << seconds << "waits for the first picture";
+        return;
+    }
     MM_LOG_D() << "seek absolute" << seconds;
     command({QStringLiteral("seek"), QString::number(seconds), QStringLiteral("absolute")});
 }
@@ -1785,12 +2114,12 @@ void MpvController::setPropertyFallback(const QString &name,
     const QByteArray legacyUtf8 = legacyName.toUtf8();
     const QByteArray valueUtf8 = value.toString().toUtf8();
 
-    post([nameUtf8, legacyUtf8, valueUtf8](mpv_handle *mpv) {
-        if (mpv_set_property_string(mpv, nameUtf8.constData(), valueUtf8.constData()) >= 0) {
+    post([nameUtf8, legacyUtf8, valueUtf8](MpvEngine *engine) {
+        if (engine->setPropertyString(nameUtf8.constData(), valueUtf8.constData()) >= 0) {
             return;
         }
 
-        if (mpv_set_property_string(mpv, legacyUtf8.constData(), valueUtf8.constData()) < 0) {
+        if (engine->setPropertyString(legacyUtf8.constData(), valueUtf8.constData()) < 0) {
             MM_LOG_W() << "neither" << nameUtf8 << "nor" << legacyUtf8
                        << "accepted the value" << valueUtf8
                        << "- this build of libmpv knows neither";
@@ -1800,9 +2129,10 @@ void MpvController::setPropertyFallback(const QString &name,
 
 void MpvController::applySubtitleStyle(const QVariantMap &options)
 {
-    if (!m_mpv) {
+    if (!m_engine) {
         return;
     }
+    m_subtitleStyle = options;
 
     const int scalePercent = options.value(QStringLiteral("scalePercent"), 100).toInt();
     const QString edgeStyle = options.value(QStringLiteral("edgeStyle")).toString();
@@ -1879,7 +2209,7 @@ void MpvController::applySubtitleStyle(const QVariantMap &options)
 
 void MpvController::setForceHardwareDecoding(bool force)
 {
-    if (!m_mpv) {
+    if (!m_engine) {
         return;
     }
 

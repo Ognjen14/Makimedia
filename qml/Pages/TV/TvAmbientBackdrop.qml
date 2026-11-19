@@ -13,6 +13,8 @@ Item {
 
     readonly property bool hasArtwork: _image.status === Image.Ready
 
+    readonly property bool shown: parent !== null && parent.visible
+
     anchors.fill: parent
     visible: hasArtwork
 
@@ -20,7 +22,7 @@ Item {
         id: _image
 
         anchors.fill: parent
-        source: root.source
+        source: root.shown ? root.source : ""
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
         cache: true
@@ -37,18 +39,21 @@ Item {
             anchors.centerIn: parent
             width: parent.width * 1.25
             height: parent.height * 1.25
-            source: root.source
+            source: root.shown ? root.source : ""
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
             cache: true
         }
     }
 
-    FastBlur {
+    Loader {
         anchors.fill: parent
-        source: _blurSource
-        radius: Math.round(root.height * 0.064)
-        visible: root.hasArtwork
+        active: root.shown && root.hasArtwork
+
+        sourceComponent: FastBlur {
+            source: _blurSource
+            radius: Math.round(root.height * 0.064)
+        }
     }
 
     Rectangle {

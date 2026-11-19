@@ -108,6 +108,7 @@ int main(int argc, char *argv[])
         format.setAlphaBufferSize(8);
         QSurfaceFormat::setDefaultFormat(format);
 
+        AndroidVideoSurface::preview();
         AndroidVideoSurface::instance()->create();
     }
 #endif
@@ -137,7 +138,7 @@ int main(int argc, char *argv[])
     mpvController.setTransportControls(platformServices.transportControls());
     qmlRegisterSingletonInstance("com.topicdev.makimedia", 1, 0, "MpvPlayer", &mpvController);
 
-    MpvController previewController;
+    MpvController previewController(MpvController::Role::Preview);
     previewController.configureForPreview();
     qmlRegisterSingletonInstance("com.topicdev.makimedia", 1, 0, "PreviewPlayer",
                                  &previewController);
