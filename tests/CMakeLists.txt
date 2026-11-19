@@ -31,6 +31,7 @@ set(MM_TESTS
     tst_listtext
     tst_genreshelf
     tst_similartitles
+    tst_searchindex
     tst_previewpick
     tst_titlearrangement
     tst_singleinstance

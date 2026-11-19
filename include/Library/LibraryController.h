@@ -13,18 +13,21 @@
 #include "Library/LibraryChange.h"
 #include "Library/MediaListModel.h"
 #include "Library/RemovedFileModel.h"
+#include "Library/SearchIndex.h"
 #include "Library/ShowEpisodeModel.h"
 #include "Library/UnmatchedShowModel.h"
 #include "Platform/MediaFileInfo.h"
 
 #include <QAbstractItemModel>
 #include <QDate>
+#include <QElapsedTimer>
 #include <QHash>
 #include <QList>
 #include <QObject>
 #include <QSet>
 #include <QSettings>
 #include <QTimer>
+#include <QVariant>
 #include <QVariantList>
 #include <QVariantMap>
 #include <QQueue>
@@ -73,6 +76,8 @@ class LibraryController : public QObject
     Q_PROPERTY(bool searchEpisodesCapped READ searchEpisodesCapped NOTIFY searchChanged FINAL)
     Q_PROPERTY(bool searchFilesCapped READ searchFilesCapped NOTIFY searchChanged FINAL)
     Q_PROPERTY(QString searchQuery READ searchQuery NOTIFY searchChanged FINAL)
+    Q_PROPERTY(QVariantList searchPeople READ searchPeople NOTIFY searchChanged FINAL)
+    Q_PROPERTY(QVariantMap searchPerson READ searchPerson NOTIFY searchChanged FINAL)
     Q_PROPERTY(int sortMode READ sortMode WRITE setSortMode NOTIFY browseOptionsChanged FINAL)
     Q_PROPERTY(int filterMode READ filterMode WRITE setFilterMode NOTIFY browseOptionsChanged FINAL)
     Q_PROPERTY(bool hasCustomOptions READ hasCustomOptions NOTIFY browseOptionsChanged FINAL)
@@ -167,6 +172,8 @@ public:
     bool searchEpisodesCapped() const;
     bool searchFilesCapped() const;
     QString searchQuery() const;
+    QVariantList searchPeople() const;
+    QVariantMap searchPerson() const;
     int sortMode() const;
     void setSortMode(int mode);
     int filterMode() const;
@@ -176,6 +183,10 @@ public:
 
     Q_INVOKABLE void search(const QString &query);
     Q_INVOKABLE void clearSearch();
+    Q_INVOKABLE QVariant searchReason(qint64 mediaId) const;
+    Q_INVOKABLE QVariantList suggest(const QString &text, int limit);
+    Q_INVOKABLE void openPerson(const QString &name);
+    Q_INVOKABLE void closePerson();
 
     BrowseListModel *browseEntries() const;
     MediaListModel *movies() const;
@@ -430,6 +441,11 @@ private:
     void rescanFoldersQuiet(const QList<qint64> &folderIds);
     void reloadCurrentView();
     QList<LibraryFile> applyOptions(const QList<LibraryFile> &files) const;
+    void runSearch(const QString &query);
+    void ensureSearchIndex();
+    QVariantMap personEntry(const SearchIndex::PersonHit &person) const;
+    QVariantMap titleEntry(const MediaRecord &title, const QString &reason) const;
+    QString creditReason(int kind, const QString &person, const QString &role) const;
 
     enum class View {
         Folder,
@@ -469,6 +485,13 @@ private:
     QStringList m_reportedUnavailable;
     QSettings m_settings;
     QString m_searchQuery;
+    QVariantList m_searchPeople;
+    QVariantMap m_searchPerson;
+    QHash<qint64, QString> m_searchReasons;
+    SearchIndex m_searchIndex;
+    bool m_searchTitlesStale = true;
+    bool m_searchCreditsStale = true;
+    QElapsedTimer m_searchCreditsAge;
     QString m_launchPath;
     int m_sortMode = SortRecentlyAdded;
     int m_filterMode = FilterEverything;

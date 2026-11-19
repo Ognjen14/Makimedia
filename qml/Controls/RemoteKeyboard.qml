@@ -10,8 +10,26 @@ FocusScope {
     property string text: ""
     property bool opened: false
 
+    property var suggestions: []
+    property string suggestionsTitle: ""
+
     signal accepted(string text)
     signal cancelled()
+    signal suggestionChosen(var item)
+
+    readonly property bool hasSuggestions: !!root.suggestions && root.suggestions.length > 0
+    readonly property bool inStrip: root.row >= root.layout.length
+    property int stripIndex: 0
+
+    onSuggestionsChanged: {
+        if (!root.hasSuggestions) {
+            if (root.inStrip)
+                root.row = root.layout.length - 1
+            root.stripIndex = 0
+            return
+        }
+        root.stripIndex = Math.min(root.stripIndex, root.suggestions.length - 1)
+    }
 
     function letters(text) {
         const cells = []
@@ -46,6 +64,7 @@ FocusScope {
         text = withText || ""
         row = 0
         column = 0
+        stripIndex = 0
         opened = true
         PopupRegistry.register(root)
         forceActiveFocus()
@@ -68,6 +87,15 @@ FocusScope {
     }
 
     function press() {
+        if (root.inStrip) {
+            const item = root.suggestions[root.stripIndex]
+            if (!item)
+                return
+            root.close()
+            root.suggestionChosen(item)
+            return
+        }
+
         const cell = root.cursorCell
         switch (cell.what) {
         case "space":
@@ -89,6 +117,25 @@ FocusScope {
     }
 
     function step(dRow, dColumn) {
+        if (root.inStrip) {
+            if (dRow < 0) {
+                row = layout.length - 1
+                column = Math.min(layout[row].length - 1, column)
+            } else if (dColumn !== 0) {
+                stripIndex = Math.max(0, Math.min(root.suggestions.length - 1,
+                                                  stripIndex + dColumn))
+                _strip.positionViewAtIndex(stripIndex, ListView.Contain)
+            }
+            return
+        }
+
+        if (dRow > 0 && row === layout.length - 1 && root.hasSuggestions) {
+            row = layout.length
+            stripIndex = Math.min(stripIndex, root.suggestions.length - 1)
+            _strip.positionViewAtIndex(stripIndex, ListView.Contain)
+            return
+        }
+
         if (dRow !== 0) {
             const nextRow = Math.max(0, Math.min(layout.length - 1, row + dRow))
             if (nextRow !== row) {
@@ -178,6 +225,20 @@ FocusScope {
         width: Math.min(parent.width * 0.68, 600)
         height: _column.implicitHeight + 2 * AppTheme.spacing14
         radius: AppTheme.radiusLarge
+
+        readonly property real naturalKeyHeight:
+            Math.round((_column.width - 9 * AppTheme.spacing4) / 10 * 0.85)
+        readonly property real fixedHeight:
+            2 * AppTheme.spacing14
+            + _titleText.implicitHeight
+            + AppTheme.controlHeightMedium
+            + AppTheme.controlHeightMedium + AppTheme.spacing4
+            + (root.hasSuggestions ? _stripTitle.implicitHeight + _strip.height : 0)
+            + _column.spacing * (root.hasSuggestions ? 8 : 6)
+        readonly property real letterKeyHeight:
+            Math.max(24, Math.min(naturalKeyHeight,
+                                  Math.floor((root.height - 2 * AppTheme.spacing16
+                                              - fixedHeight) / 4)))
         color: AppTheme.surface
         border.width: 1
         border.color: AppTheme.outline
@@ -192,6 +253,8 @@ FocusScope {
             spacing: AppTheme.spacing8
 
             Text {
+                id: _titleText
+
                 width: parent.width
                 text: root.title
                 color: AppTheme.textSecondary
@@ -254,7 +317,7 @@ FocusScope {
                             width: _keyRow.cell
                             height: _keyRow.actionRow
                                     ? AppTheme.controlHeightMedium
-                                    : Math.round(_keyRow.cell * 0.85)
+                                    : _panel.letterKeyHeight
                             radius: _keyRow.actionRow ? AppTheme.radiusPill
                                                       : AppTheme.radiusSmall
                             color: {
@@ -296,7 +359,57 @@ FocusScope {
                 }
             }
 
+            Text {
+                id: _stripTitle
 
+                width: parent.width
+                visible: root.hasSuggestions
+                topPadding: AppTheme.spacing2
+                text: root.suggestionsTitle
+                color: AppTheme.textSecondary
+                font.pixelSize: AppTheme.fs12
+                elide: Text.ElideRight
+            }
+
+            ListView {
+                id: _strip
+
+                readonly property int cardWidth: 190
+                readonly property int cardHeight: 52
+
+                width: parent.width
+                height: root.hasSuggestions ? cardHeight + 6 : 0
+                visible: root.hasSuggestions
+                orientation: ListView.Horizontal
+                spacing: AppTheme.spacing8
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                interactive: !AppTheme.remoteNavigation
+                keyNavigationEnabled: false
+                model: root.suggestions
+                topMargin: 3
+                leftMargin: 3
+                rightMargin: 3
+
+                delegate: SuggestionCard {
+                    id: _suggestion
+
+                    required property int index
+                    required property var modelData
+
+                    compact: true
+                    cardWidth: _strip.cardWidth
+                    compactHeight: _strip.cardHeight
+                    item: _suggestion.modelData
+                    highlighted: root.inStrip && root.stripIndex === _suggestion.index
+
+                    onClicked: {
+                        root.row = root.layout.length
+                        root.stripIndex = _suggestion.index
+                        root.press()
+                    }
+                }
+            }
         }
     }
 }

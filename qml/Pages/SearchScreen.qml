@@ -17,23 +17,106 @@ Item {
 
     readonly property bool hasQuery: Library.searchQuery.trim().length > 0
 
+    readonly property bool personMode: Library.searchPerson.name !== undefined
+
+    readonly property bool canGoBack: personMode
+
+    function goBack() {
+        if (!root.personMode)
+            return false
+        Library.closePerson()
+        root.kind = 0
+        _scroll.contentY = 0
+        if (S.AppTheme.remoteNavigation)
+            Qt.callLater(root.focusAfterPerson)
+        return true
+    }
+
+    function focusAfterPerson() {
+        if (root.showsPeople) {
+            _peopleRow.forceActiveFocus()
+            root.showSection(_peopleRow)
+        } else if (Library.searchCount > 0) {
+            root.focusFirstSection()
+        } else {
+            _bar.forceFocus()
+        }
+    }
+
+    function openPerson(name) {
+        _pendingSearch.stop()
+        Library.openPerson(name)
+        root.kind = 0
+        _scroll.contentY = 0
+        if (S.AppTheme.remoteNavigation)
+            Qt.callLater(root.focusFirstSection)
+    }
+
+    function openSuggestion(item, typed) {
+        if (item.kind === "recent") {
+            root.searchFor(item.title)
+            root.keepQuery()
+            if (S.AppTheme.remoteNavigation) {
+                Qt.callLater(function () {
+                    if (Library.searchCount > 0)
+                        root.focusFirstSection()
+                    else
+                        _bar.forceFocus()
+                })
+            }
+            return
+        }
+
+        if (typed !== undefined && _bar.text !== typed)
+            _bar.text = typed
+        _pendingSearch.stop()
+        root.searchNow()
+        root.keepQuery()
+
+        if (item.kind === "person")
+            root.openPerson(item.name)
+        else if (item.kind === "tv")
+            root.showRequested(item.mediaId, item.title)
+        else if (item.handle && item.handle.length > 0)
+            root.detailsRequested(item.handle)
+    }
+
+    function keyboardSuggestions(text) {
+        if (text.trim().length > 0)
+            return Library.suggest(text, 8)
+
+        const items = []
+        const recent = AppSettings.recentSearches
+        for (let i = 0; i < Math.min(3, recent.length); ++i)
+            items.push({ kind: "recent", title: recent[i], subtitle: "" })
+        return items.concat(Library.suggest("", 8 - items.length))
+    }
+
+    readonly property bool showsLive: !S.AppTheme.remoteNavigation && !root.personMode
+                                      && _bar.text.trim().length === 1
+    readonly property var liveSuggestions: root.showsLive ? Library.suggest(_bar.text, 12) : []
+
     readonly property bool acceptsFocus: true
 
     property int kind: 0
 
     readonly property int movieCount: Library.searchMovies.count
     readonly property int showCount: Library.searchShows.count
+    readonly property int peopleCount: Library.searchPeople.length
     readonly property int collectionCount: Library.searchCollections.count
     readonly property int episodeCount: Library.searchEpisodes.count
     readonly property int fileCount: Library.searchResults.count
 
     readonly property bool showsMovies: (kind === 0 || kind === 1) && movieCount > 0
     readonly property bool showsShows: (kind === 0 || kind === 2) && showCount > 0
+    readonly property bool showsPeople: (kind === 0 || kind === 6) && peopleCount > 0
+                                        && !personMode
     readonly property bool showsCollections: (kind === 0 || kind === 3) && collectionCount > 0
     readonly property bool showsEpisodes: (kind === 0 || kind === 4) && episodeCount > 0
     readonly property bool showsFiles: (kind === 0 || kind === 5) && fileCount > 0
 
     readonly property bool foundNothing: hasQuery && Library.searchCount === 0
+                                         && !personMode && !showsLive
 
     function countText(count, capped) {
         return capped ? count + "+" : String(count)
@@ -52,7 +135,13 @@ Item {
                && root.plain(text).indexOf(root.plain(root.needle)) >= 0
     }
 
-    function whyMatched(title, genres) {
+    function whyMatched(mediaId, title, genres) {
+        void Library.searchQuery
+        void Library.searchPerson
+        const reason = Library.searchReason(mediaId)
+        if (reason !== undefined && reason !== null)
+            return reason
+
         if (root.needle.length === 0 || root.carriesNeedle(title))
             return ""
 
@@ -78,6 +167,8 @@ Item {
         if (showCount > 0)
             kinds.push({ kind: 2, label: qsTr("TV shows"),
                          text: countText(showCount, Library.searchShowsCapped) })
+        if (peopleCount > 0 && !personMode)
+            kinds.push({ kind: 6, label: qsTr("People"), text: String(peopleCount) })
         if (collectionCount > 0)
             kinds.push({ kind: 3, label: qsTr("Collections"),
                          text: String(collectionCount) })
@@ -123,6 +214,8 @@ Item {
             sections.push(_movieRow)
         if (showsShows)
             sections.push(_showRow)
+        if (showsPeople)
+            sections.push(_peopleRow)
         if (showsCollections)
             sections.push(_collectionRow)
         if (showsEpisodes)
@@ -165,7 +258,7 @@ Item {
         if (next < 0) {
             if (_chips.visible)
                 _chips.forceActiveFocus()
-            else
+            else if (!root.personMode)
                 _bar.forceFocus()
             _scroll.contentY = 0
             return
@@ -195,7 +288,11 @@ Item {
 
     Component.onCompleted: {
         _bar.text = Library.searchQuery
-        _bar.forceFocus()
+        _pendingSearch.stop()
+        if (root.personMode && S.AppTheme.remoteNavigation)
+            Qt.callLater(root.focusFirstSection)
+        else
+            _bar.forceFocus()
     }
 
     Ctrl.SearchBar {
@@ -205,7 +302,8 @@ Item {
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.margins: S.AppTheme.spacing16
-        placeholder: qsTr("Search your library")
+        visible: !root.personMode
+        placeholder: qsTr("Search titles, actors and directors")
 
         onAccepted: _pendingSearch.restart()
         onCleared: {
@@ -216,6 +314,10 @@ Item {
         }
 
         onDownRequested: {
+            if (root.showsLive && _live.count > 0) {
+                _live.forceActiveFocus()
+                return
+            }
             root.searchNow()
             if (Library.searchCount > 0)
                 root.focusFirstSection()
@@ -229,23 +331,105 @@ Item {
         onTypingRequested: _keyboard.open(qsTr("Search your library"), _bar.text)
     }
 
+    Item {
+        id: _personHead
+
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: S.AppTheme.spacing16
+        visible: root.personMode
+        height: visible ? _personRow.implicitHeight : 0
+
+        Row {
+            id: _personRow
+
+            width: parent.width
+            spacing: S.AppTheme.spacing16
+
+            Rectangle {
+                id: _personFace
+
+                width: 64
+                height: 64
+                radius: width / 2
+                color: S.AppTheme.surfaceVariant
+
+                Text {
+                    anchors.centerIn: parent
+                    text: S.Format.initials(Library.searchPerson.name || "")
+                    color: S.AppTheme.textDisabled
+                    font.pixelSize: S.AppTheme.fs18
+                    font.weight: Font.Medium
+                }
+
+                Ctrl.RoundedClip {
+                    anchors.fill: parent
+                    radius: _personFace.radius
+
+                    Image {
+                        anchors.fill: parent
+                        source: {
+                            void Metadata.artworkRevision
+                            return Metadata.profileUrl(Library.searchPerson.profilePath || "", 185)
+                        }
+                        sourceSize.width: Math.ceil(width * Screen.devicePixelRatio)
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        visible: status === Image.Ready
+                    }
+                }
+            }
+
+            Column {
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width - _personFace.width - parent.spacing
+                spacing: S.AppTheme.spacing4
+
+                Text {
+                    width: parent.width
+                    text: Library.searchPerson.name || ""
+                    color: S.AppTheme.textPrimary
+                    font.pixelSize: S.AppTheme.fs22
+                    font.weight: Font.Medium
+                    elide: Text.ElideRight
+                }
+
+                Text {
+                    width: parent.width
+                    text: [Library.searchPerson.subtitle || "",
+                           qsTr("%n title(s) in your library", "",
+                                Library.searchPerson.titleCount || 0)]
+                          .filter(function (part) { return part.length > 0 })
+                          .join("  ·  ")
+                    color: S.AppTheme.textSecondary
+                    font.pixelSize: S.AppTheme.fs13
+                    elide: Text.ElideRight
+                }
+            }
+        }
+    }
+
     Ctrl.Rail {
         id: _chips
 
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: _bar.bottom
+        anchors.top: root.personMode ? _personHead.bottom : _bar.bottom
         anchors.leftMargin: S.AppTheme.spacing16
         anchors.rightMargin: S.AppTheme.spacing16
         anchors.topMargin: visible ? S.AppTheme.spacing4 : 0
         height: visible ? S.AppTheme.controlHeightSmall + S.AppTheme.spacing4 : 0
-        visible: root.chips.length > 0
+        visible: root.chips.length > 0 && !root.showsLive
         spacing: S.AppTheme.spacing8
         model: root.chips
 
         onLeftEdgeReached: root.drawerRequested()
         onActivated: (index) => root.kind = _chips.model[index].kind
-        Keys.onUpPressed: _bar.forceFocus()
+        Keys.onUpPressed: {
+            if (!root.personMode)
+                _bar.forceFocus()
+        }
         Keys.onDownPressed: root.focusFirstSection()
 
         delegate: Ctrl.PillChip {
@@ -279,7 +463,8 @@ Item {
         anchors.bottom: parent.bottom
         anchors.topMargin: S.AppTheme.spacing4
         clip: true
-        visible: root.hasQuery && Library.searchCount > 0
+        visible: (root.hasQuery || root.personMode) && !root.showsLive
+                 && Library.searchCount > 0
         contentHeight: _column.height + S.AppTheme.spacing24
         boundsBehavior: Flickable.StopAtBounds
 
@@ -353,7 +538,8 @@ Item {
                         }
                         title: _movie.title
                         meta: root.metaWith(_movie.year > 0 ? String(_movie.year) : "",
-                                            root.whyMatched(_movie.title, _movie.genres))
+                                            root.whyMatched(_movie.mediaId, _movie.title,
+                                                            _movie.genres))
                         watched: _movie.watched
                         progress: _movie.watchProgress
                         highlighted: _movie.ListView.isCurrentItem && _movieRow.activeFocus
@@ -424,7 +610,8 @@ Item {
                         }
                         title: _show.title
                         meta: root.metaWith(qsTr("%n episode(s)", "", _show.fileCount),
-                                            root.whyMatched(_show.title, _show.genres))
+                                            root.whyMatched(_show.mediaId, _show.title,
+                                                            _show.genres))
                         watched: _show.watched
                         progress: _show.watchProgress
                         highlighted: _show.ListView.isCurrentItem && _showRow.activeFocus
@@ -432,6 +619,71 @@ Item {
                         onClicked: _show.activate()
                     }
                 }
+            }
+
+            Ctrl.RowHeader {
+                width: parent.width
+                visible: root.showsPeople
+                title: qsTr("People")
+                countText: String(root.peopleCount)
+            }
+
+            Ctrl.Rail {
+                id: _peopleRow
+
+                readonly property int cardWidth:
+                    Math.min(120, Math.round(root.posterWidth * 0.75))
+
+                width: parent.width
+                height: visible ? _personProbe.implicitHeight + S.AppTheme.focusHeadroom : 0
+                visible: root.showsPeople
+                spacing: S.AppTheme.spacing16
+                model: root.showsPeople ? Library.searchPeople : []
+                cacheBuffer: 0
+                currentIndex: 0
+                leadInset: root.rowInset
+                tailInset: S.AppTheme.focusHeadroom
+
+                onLeftEdgeReached: root.drawerRequested()
+                onActivated: (index) => root.openPerson(Library.searchPeople[index].name)
+                Keys.onUpPressed: root.stepSection(_peopleRow, -1)
+                Keys.onDownPressed: root.stepSection(_peopleRow, 1)
+
+                delegate: Item {
+                    id: _person
+
+                    required property int index
+                    required property var modelData
+
+                    width: _peopleRow.cardWidth
+                    height: _peopleRow.height
+
+                    Ctrl.SuggestionCard {
+                        y: Math.round(S.AppTheme.focusHeadroom / 2)
+                        cardWidth: _peopleRow.cardWidth
+                        item: ({
+                            kind: "person",
+                            name: _person.modelData.name,
+                            title: _person.modelData.name,
+                            profilePath: _person.modelData.profilePath,
+                            subtitle: [_person.modelData.subtitle,
+                                       qsTr("%n title(s)", "", _person.modelData.titleCount)]
+                                      .filter(function (part) { return part.length > 0 })
+                                      .join(" · ")
+                        })
+                        highlighted: _person.ListView.isCurrentItem && _peopleRow.activeFocus
+
+                        onClicked: root.openPerson(_person.modelData.name)
+                    }
+                }
+            }
+
+            Ctrl.SuggestionCard {
+                id: _personProbe
+
+                visible: false
+                cardWidth: _peopleRow.cardWidth
+                item: ({ kind: "person", name: "Probe", title: "Probe", subtitle: "Probe" })
             }
 
             Ctrl.RowHeader {
@@ -719,11 +971,74 @@ Item {
     }
 
     Column {
+        id: _liveSection
+
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: _bar.bottom
+        anchors.leftMargin: S.AppTheme.spacing16
+        anchors.rightMargin: S.AppTheme.spacing16
+        anchors.topMargin: S.AppTheme.spacing8
+        visible: root.showsLive && root.liveSuggestions.length > 0
+        spacing: S.AppTheme.spacing6
+
+        Ctrl.RowHeader {
+            width: parent.width
+            title: qsTr("Top matches")
+        }
+
+        Ctrl.Rail {
+            id: _live
+
+            readonly property int cardWidth: Math.round(root.posterWidth * 0.6)
+
+            width: parent.width
+            height: _liveProbe.implicitHeight + S.AppTheme.focusHeadroom
+            spacing: S.AppTheme.spacing12
+            model: root.liveSuggestions
+            currentIndex: 0
+            leadInset: S.AppTheme.focusHeadroom
+            tailInset: S.AppTheme.focusHeadroom
+
+            onLeftEdgeReached: root.drawerRequested()
+            onActivated: (index) => root.openSuggestion(root.liveSuggestions[index])
+            Keys.onUpPressed: _bar.forceFocus()
+
+            delegate: Item {
+                id: _liveItem
+
+                required property int index
+                required property var modelData
+
+                width: _live.cardWidth
+                height: _live.height
+
+                Ctrl.SuggestionCard {
+                    y: Math.round(S.AppTheme.focusHeadroom / 2)
+                    cardWidth: _live.cardWidth
+                    item: _liveItem.modelData
+                    highlighted: _liveItem.ListView.isCurrentItem && _live.activeFocus
+
+                    onClicked: root.openSuggestion(_liveItem.modelData)
+                }
+            }
+        }
+
+        Ctrl.SuggestionCard {
+            id: _liveProbe
+
+            visible: false
+            cardWidth: _live.cardWidth
+            item: ({ kind: "movie", title: "Probe", subtitle: "Probe" })
+        }
+    }
+
+    Column {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: _bar.bottom
         anchors.topMargin: S.AppTheme.spacing32
         width: Math.min(parent.width - 2 * S.AppTheme.spacing24, 440)
-        visible: !root.hasQuery
+        visible: !root.hasQuery && !root.personMode && !root.showsLive
         spacing: S.AppTheme.spacing16
 
         Ctrl.EmptyState {
@@ -782,7 +1097,14 @@ Item {
         id: _keyboard
 
         z: 40
+        suggestions: _keyboard.opened ? root.keyboardSuggestions(_keyboard.text) : []
+        suggestionsTitle: _keyboard.text.trim().length > 0
+                          ? qsTr("Top matches")
+                          : (AppSettings.recentSearches.length > 0
+                             ? qsTr("Recent searches and picks")
+                             : qsTr("From your library"))
 
+        onSuggestionChosen: (item) => root.openSuggestion(item, _keyboard.text)
         onAccepted: (text) => {
             _bar.text = text
             root.searchNow()

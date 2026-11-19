@@ -480,6 +480,36 @@ QHash<qint64, QList<CreditRecord>> MediaRepository::leadCredits(int castPerTitle
     return credits;
 }
 
+QList<QPair<qint64, CreditRecord>> MediaRepository::searchableCredits() const
+{
+    QList<QPair<qint64, CreditRecord>> credits;
+
+    QSqlQuery query(m_database.handle());
+    query.setForwardOnly(true);
+    query.prepare(QStringLiteral(
+        "SELECT media_id, kind, name, role, profile_path FROM credits"
+        " WHERE episode_id = 0 AND kind IN (:cast, :director, :creator)"
+        " ORDER BY media_id, sort"));
+    query.bindValue(QStringLiteral(":cast"), int(CreditRecord::Cast));
+    query.bindValue(QStringLiteral(":director"), int(CreditRecord::Director));
+    query.bindValue(QStringLiteral(":creator"), int(CreditRecord::Creator));
+
+    if (!query.exec()) {
+        MM_LOG_W() << "could not read the credits for search" << query.lastError().text();
+        return credits;
+    }
+
+    while (query.next()) {
+        CreditRecord credit;
+        credit.kind = query.value(1).toInt();
+        credit.name = query.value(2).toString();
+        credit.role = query.value(3).toString();
+        credit.profilePath = query.value(4).toString();
+        credits.append({query.value(0).toLongLong(), credit});
+    }
+    return credits;
+}
+
 QList<qint64> MediaRepository::fileIdsFor(qint64 mediaId) const
 {
     QList<qint64> ids;

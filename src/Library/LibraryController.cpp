@@ -280,6 +280,7 @@ CollectionListModel *LibraryController::searchCollections() const
 int LibraryController::searchCount() const
 {
     return m_searchMovieModel->rowCount() + m_searchShowModel->rowCount()
+        + int(m_searchPeople.size())
         + m_searchEpisodeModel->rowCount() + m_searchCollectionModel->rowCount()
         + m_searchModel->rowCount();
 }
@@ -307,6 +308,22 @@ bool LibraryController::searchFilesCapped() const
 QString LibraryController::searchQuery() const
 {
     return m_searchQuery;
+}
+
+QVariantList LibraryController::searchPeople() const
+{
+    return m_searchPeople;
+}
+
+QVariantMap LibraryController::searchPerson() const
+{
+    return m_searchPerson;
+}
+
+QVariant LibraryController::searchReason(qint64 mediaId) const
+{
+    const auto found = m_searchReasons.constFind(mediaId);
+    return found == m_searchReasons.constEnd() ? QVariant() : QVariant(found.value());
 }
 
 int LibraryController::sortMode() const
@@ -378,14 +395,56 @@ void LibraryController::search(const QString &query)
         return;
     }
 
+    runSearch(query);
+}
+
+void LibraryController::runSearch(const QString &query)
+{
+    QElapsedTimer timer;
+    timer.start();
+
     m_searchQuery = query;
+    m_searchPerson.clear();
+    m_searchReasons.clear();
+
+    ensureSearchIndex();
 
     const int limit = 60;
 
-    QList<MediaRecord> movies =
-        m_mediaRepository.searchOfKind(QStringLiteral("movie"), query, limit + 1);
-    QList<MediaRecord> shows =
-        m_mediaRepository.searchOfKind(QStringLiteral("tv"), query, limit + 1);
+    QList<MediaRecord> movies;
+    QList<MediaRecord> shows;
+    QSet<qint64> found;
+
+    const QList<SearchIndex::TitleHit> hits = m_searchIndex.titles(query);
+    for (const SearchIndex::TitleHit &hit : hits) {
+        QList<MediaRecord> *into = hit.title.kind == QLatin1String("movie")
+            ? &movies
+            : (hit.title.kind == QLatin1String("tv") ? &shows : nullptr);
+        if (!into) {
+            continue;
+        }
+        found.insert(hit.title.id);
+        m_searchReasons.insert(hit.title.id,
+                               hit.person.isEmpty()
+                                   ? QString()
+                                   : creditReason(hit.personKind, hit.person, hit.role));
+        into->append(hit.title);
+    }
+
+    const auto appendUnfound = [&found](QList<MediaRecord> &into,
+                                        const QList<MediaRecord> &more) {
+        for (const MediaRecord &title : more) {
+            if (!found.contains(title.id)) {
+                found.insert(title.id);
+                into.append(title);
+            }
+        }
+    };
+    appendUnfound(movies, m_mediaRepository.searchOfKind(QStringLiteral("movie"),
+                                                         query, 2 * limit + 1));
+    appendUnfound(shows, m_mediaRepository.searchOfKind(QStringLiteral("tv"),
+                                                        query, 2 * limit + 1));
+
     QList<LibraryFile> episodes = m_fileRepository.searchEpisodes(query, limit + 1);
     QList<LibraryFile> loose = m_fileRepository.searchUnmatched(query, limit + 1);
 
@@ -404,11 +463,20 @@ void LibraryController::search(const QString &query)
     m_searchEpisodesCapped = trim(episodes);
     m_searchFilesCapped = trim(loose);
 
-    const QString needle = TextFold::key(query.trimmed());
+    m_searchPeople.clear();
+    const QList<SearchIndex::PersonHit> people = m_searchIndex.people(query, 20);
+    for (const SearchIndex::PersonHit &person : people) {
+        m_searchPeople.append(personEntry(person));
+    }
+
+    const QString needle = SearchIndex::fold(query).remove(QLatin1Char(' '));
     QList<CollectionShelf::Summary> collections;
-    for (const CollectionShelf::Summary &collection : std::as_const(m_collections)) {
-        if (TextFold::key(collection.name).contains(needle)) {
-            collections.append(collection);
+    if (!needle.isEmpty()) {
+        for (const CollectionShelf::Summary &collection : std::as_const(m_collections)) {
+            if (SearchIndex::fold(collection.name).remove(QLatin1Char(' '))
+                    .contains(needle)) {
+                collections.append(collection);
+            }
         }
     }
 
@@ -419,18 +487,22 @@ void LibraryController::search(const QString &query)
     m_searchModel->setFiles(loose);
 
     MM_LOG_I() << "search" << query << "->" << movies.size() << "films,"
-               << shows.size() << "shows," << episodes.size() << "episodes,"
-               << collections.size() << "collections," << loose.size()
-               << "unmatched files";
+               << shows.size() << "shows," << m_searchPeople.size() << "people,"
+               << episodes.size() << "episodes," << collections.size()
+               << "collections," << loose.size() << "unmatched files in"
+               << timer.elapsed() << "ms";
     emit searchChanged();
 }
 
 void LibraryController::clearSearch()
 {
-    if (m_searchQuery.isEmpty()) {
+    if (m_searchQuery.isEmpty() && m_searchPerson.isEmpty()) {
         return;
     }
     m_searchQuery.clear();
+    m_searchPerson.clear();
+    m_searchPeople.clear();
+    m_searchReasons.clear();
     m_searchModel->setFiles(QList<LibraryFile>());
     m_searchEpisodeModel->setFiles(QList<LibraryFile>());
     m_searchMovieModel->setItems(QList<MediaRecord>());
@@ -441,6 +513,229 @@ void LibraryController::clearSearch()
     m_searchEpisodesCapped = false;
     m_searchFilesCapped = false;
     emit searchChanged();
+}
+
+void LibraryController::ensureSearchIndex()
+{
+    if (m_searchTitlesStale) {
+        QList<MediaRecord> titles;
+        titles.reserve(m_movieModel->rowCount() + m_showModel->rowCount());
+        for (const MediaListModel *list : {m_movieModel, m_showModel}) {
+            for (int row = 0; row < list->rowCount(); ++row) {
+                titles.append(list->at(row));
+            }
+        }
+        m_searchIndex.setTitles(titles);
+        m_searchTitlesStale = false;
+    }
+
+    constexpr qint64 kCreditsFreshFor = 2 * 60 * 1000;
+    if (m_searchCreditsStale || !m_searchCreditsAge.isValid()
+        || m_searchCreditsAge.elapsed() > kCreditsFreshFor) {
+        QElapsedTimer timer;
+        timer.start();
+        const QList<QPair<qint64, CreditRecord>> credits =
+            m_mediaRepository.searchableCredits();
+        m_searchIndex.setCredits(credits);
+        m_searchCreditsStale = false;
+        m_searchCreditsAge.start();
+        MM_LOG_D() << "search index read" << credits.size() << "credits over"
+                   << m_searchIndex.titleCount() << "titles in" << timer.elapsed() << "ms";
+    }
+}
+
+QString LibraryController::creditReason(int kind, const QString &person,
+                                        const QString &role) const
+{
+    if (!person.isEmpty()) {
+        switch (kind) {
+        case CreditRecord::Director:
+            return tr("directed by %1").arg(person);
+        case CreditRecord::Creator:
+            return tr("created by %1").arg(person);
+        default:
+            return tr("with %1").arg(person);
+        }
+    }
+
+    switch (kind) {
+    case CreditRecord::Director:
+        return tr("Director");
+    case CreditRecord::Creator:
+        return tr("Creator");
+    default:
+        return role.isEmpty() ? QString() : tr("as %1").arg(role);
+    }
+}
+
+QVariantMap LibraryController::personEntry(const SearchIndex::PersonHit &person) const
+{
+    QStringList roles;
+    if (person.acted) {
+        roles.append(tr("Actor"));
+    }
+    if (person.directed) {
+        roles.append(tr("Director"));
+    }
+    if (person.created) {
+        roles.append(tr("Creator"));
+    }
+
+    QVariantMap entry;
+    entry.insert(QStringLiteral("kind"), QStringLiteral("person"));
+    entry.insert(QStringLiteral("name"), person.name);
+    entry.insert(QStringLiteral("title"), person.name);
+    entry.insert(QStringLiteral("subtitle"), roles.join(QStringLiteral(" · ")));
+    entry.insert(QStringLiteral("profilePath"), person.profilePath);
+    entry.insert(QStringLiteral("posterPath"), QString());
+    entry.insert(QStringLiteral("titleCount"), int(person.mediaIds.size()));
+    entry.insert(QStringLiteral("mediaId"), 0);
+    entry.insert(QStringLiteral("handle"), QString());
+    return entry;
+}
+
+QVariantMap LibraryController::titleEntry(const MediaRecord &title,
+                                          const QString &reason) const
+{
+    QVariantMap entry;
+    entry.insert(QStringLiteral("kind"), title.kind);
+    entry.insert(QStringLiteral("name"), QString());
+    entry.insert(QStringLiteral("title"), title.title);
+    entry.insert(QStringLiteral("subtitle"),
+                 !reason.isEmpty() ? reason
+                                   : (title.year > 0 ? QString::number(title.year)
+                                                     : QString()));
+    entry.insert(QStringLiteral("profilePath"), QString());
+    entry.insert(QStringLiteral("posterPath"), title.posterPath);
+    entry.insert(QStringLiteral("mediaId"), title.id);
+    entry.insert(QStringLiteral("handle"), title.firstFileHandle);
+    entry.insert(QStringLiteral("year"), title.year);
+    return entry;
+}
+
+QVariantList LibraryController::suggest(const QString &text, int limit)
+{
+    ensureSearchIndex();
+    limit = qBound(1, limit, 20);
+
+    QVariantList result;
+
+    if (SearchIndex::fold(text).isEmpty()) {
+        QList<MediaRecord> unwatched;
+        for (const MediaListModel *list : {m_movieModel, m_showModel}) {
+            for (int row = 0; row < list->rowCount(); ++row) {
+                const MediaRecord title = list->at(row);
+                if (title.fileCount > 0 && title.watchedCount < title.fileCount) {
+                    unwatched.append(title);
+                }
+            }
+        }
+
+        std::sort(unwatched.begin(), unwatched.end(),
+                  [](const MediaRecord &a, const MediaRecord &b) {
+                      return a.lastAdded > b.lastAdded;
+                  });
+        const int newest = std::min(2, int(unwatched.size()));
+        std::sort(unwatched.begin() + newest, unwatched.end(),
+                  [](const MediaRecord &a, const MediaRecord &b) {
+                      return a.rating > b.rating;
+                  });
+
+        for (const MediaRecord &title : std::as_const(unwatched)) {
+            if (result.size() >= limit) {
+                break;
+            }
+            result.append(titleEntry(title, QString()));
+        }
+        return result;
+    }
+
+    struct Scored
+    {
+        int score = 0;
+        QVariantMap entry;
+    };
+    QList<Scored> scored;
+
+    const QList<SearchIndex::TitleHit> titles = m_searchIndex.titles(text, limit);
+    for (const SearchIndex::TitleHit &hit : titles) {
+        const QString reason = hit.person.isEmpty()
+            ? QString()
+            : creditReason(hit.personKind, hit.person, hit.role);
+        scored.append({hit.score, titleEntry(hit.title, reason)});
+    }
+
+    const QList<SearchIndex::PersonHit> people = m_searchIndex.people(text, 3);
+    for (const SearchIndex::PersonHit &person : people) {
+        scored.append({SearchIndex::personScore(person.tier), personEntry(person)});
+    }
+
+    std::stable_sort(scored.begin(), scored.end(),
+                     [](const Scored &a, const Scored &b) { return a.score > b.score; });
+
+    for (const Scored &item : std::as_const(scored)) {
+        if (result.size() >= limit) {
+            break;
+        }
+        result.append(item.entry);
+    }
+    return result;
+}
+
+void LibraryController::openPerson(const QString &name)
+{
+    ensureSearchIndex();
+
+    const SearchIndex::PersonHit person = m_searchIndex.person(name);
+    if (person.mediaIds.isEmpty()) {
+        MM_LOG_W() << "nothing in the library credits" << name;
+        return;
+    }
+
+    m_searchReasons.clear();
+    QList<MediaRecord> movies;
+    QList<MediaRecord> shows;
+    const QList<SearchIndex::TitleHit> hits = m_searchIndex.titlesOf(name);
+    for (const SearchIndex::TitleHit &hit : hits) {
+        if (hit.title.kind == QLatin1String("movie")) {
+            movies.append(hit.title);
+        } else if (hit.title.kind == QLatin1String("tv")) {
+            shows.append(hit.title);
+        } else {
+            continue;
+        }
+        m_searchReasons.insert(hit.title.id,
+                               creditReason(hit.personKind, QString(), hit.role));
+    }
+
+    m_searchPerson = personEntry(person);
+    m_searchPeople.clear();
+    m_searchMovieModel->setItems(movies);
+    m_searchShowModel->setItems(shows);
+    m_searchEpisodeModel->setFiles(QList<LibraryFile>());
+    m_searchCollectionModel->setItems(QList<CollectionShelf::Summary>());
+    m_searchModel->setFiles(QList<LibraryFile>());
+    m_searchMoviesCapped = false;
+    m_searchShowsCapped = false;
+    m_searchEpisodesCapped = false;
+    m_searchFilesCapped = false;
+
+    MM_LOG_I() << "person" << person.name << "->" << movies.size() << "films,"
+               << shows.size() << "shows";
+    emit searchChanged();
+}
+
+void LibraryController::closePerson()
+{
+    if (m_searchPerson.isEmpty()) {
+        return;
+    }
+
+    if (m_searchQuery.trimmed().isEmpty()) {
+        clearSearch();
+    } else {
+        runSearch(m_searchQuery);
+    }
 }
 
 BrowseListModel *LibraryController::browseEntries() const
@@ -1616,6 +1911,8 @@ void LibraryController::placeTitles(const QList<qint64> &mediaIds)
         m_showModel->placeItem(title, listed && title.kind == QLatin1String("tv"));
         m_suggestionModel->placeItem(title, title.suggestedFileCount > 0);
     }
+    m_searchTitlesStale = true;
+    m_searchCreditsStale = true;
 
     refreshRecentTitles();
     refreshGenreRows();
@@ -3809,6 +4106,8 @@ void LibraryController::reloadMedia()
 
     m_movieModel->setItems(movies);
     m_showModel->setItems(shows);
+    m_searchTitlesStale = true;
+    m_searchCreditsStale = true;
     m_suggestionModel->setItems(m_mediaRepository.withSuggestions());
     refreshRecentTitles();
     refreshGenreRows();

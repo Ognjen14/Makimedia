@@ -278,6 +278,7 @@ public:
     QHash<qint64, qint64> lastAddedByTitle() const;
     QList<QPair<qint64, qint64>> recentlyFinishedTitles(int limit) const;
     QHash<qint64, QList<CreditRecord>> leadCredits(int castPerTitle) const;
+    QList<QPair<qint64, CreditRecord>> searchableCredits() const;
     QList<qint64> fileIdsFor(qint64 mediaId) const;
     static bool listsBefore(const MediaRecord &a, const MediaRecord &b);
     bool hasSuggestions(qint64 mediaId) const;

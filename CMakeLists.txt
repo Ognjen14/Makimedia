@@ -38,6 +38,7 @@ add_library(makimedia_core STATIC
     src/Library/BrowseOptions.cpp
     src/Library/GenreShelf.cpp
     src/Library/SimilarTitles.cpp
+    src/Library/SearchIndex.cpp
     src/Library/PreviewPick.cpp
     src/Library/CollectionShelf.cpp
     src/Library/UniverseCatalog.cpp
@@ -90,6 +91,7 @@ add_library(makimedia_core STATIC
     include/Library/BrowseOptions.h
     include/Library/GenreShelf.h
     include/Library/SimilarTitles.h
+    include/Library/SearchIndex.h
     include/Library/PreviewPick.h
     include/Library/CollectionShelf.h
     include/Library/UniverseCatalog.h
@@ -438,6 +440,7 @@ qt_add_qml_module(appmakimedia
         qml/Controls/RowHeader.qml
         qml/Controls/SetupWindow.qml
         qml/Controls/SearchBar.qml
+        qml/Controls/SuggestionCard.qml
         qml/Controls/SectionLabel.qml
         qml/Controls/SeekBar.qml
         qml/Controls/SettledWidth.qml
