@@ -498,6 +498,11 @@ Item {
                         border.width: _row.owned ? 1 : 0
                         border.color: S.AppTheme.outline
 
+                        readonly property bool dimmed: _row.watched && AppSettings.dimWatched
+                                                       && !_rowArea.containsMouse
+                                                       && !_playRow.hovered && !_playRow.activeFocus
+                                                       && !_forgetFilm.hovered
+
                         MouseArea {
                             id: _rowArea
 
@@ -563,6 +568,11 @@ Item {
                                 Ctrl.RoundedClip {
                                     anchors.fill: parent
                                     radius: _rowPoster.radius
+                                    opacity: _card.dimmed ? 0.6 : 1
+
+                                    Behavior on opacity {
+                                        NumberAnimation { duration: 110 }
+                                    }
 
                                     Canvas {
                                         id: _hatch
@@ -601,18 +611,18 @@ Item {
                                     anchors.right: parent.right
                                     anchors.margins: 4
                                     visible: _row.watched
-                                    width: 20
-                                    height: 20
-                                    radius: 10
-                                    color: "white"
+                                    width: _seenBadge.implicitWidth + S.AppTheme.spacing6
+                                    height: _seenBadge.implicitHeight + 2
+                                    radius: S.AppTheme.radiusPill
+                                    color: S.AppTheme.primary
 
-                                    Ctrl.ThemedIcon {
+                                    Text {
+                                        id: _seenBadge
+
                                         anchors.centerIn: parent
-                                        width: 13
-                                        height: 13
-                                        source: S.Icons.check
-                                        tintColor: "black"
-                                        showPlaceholder: false
+                                        text: qsTr("Seen")
+                                        color: S.AppTheme.onPrimaryStrong
+                                        font.pixelSize: S.AppTheme.fs11
                                     }
                                 }
                             }
@@ -654,7 +664,12 @@ Item {
                                                     parent.width - (_resume.visible ? _resume.width + parent.spacing : 0))
                                     text: _row.title
                                     color: _row.owned ? S.AppTheme.textPrimary : S.AppTheme.textSecondary
+                                    opacity: _card.dimmed ? 0.6 : 1
                                     font.pixelSize: root.wide ? S.AppTheme.fs16 : S.AppTheme.fs14
+
+                                    Behavior on opacity {
+                                        NumberAnimation { duration: 110 }
+                                    }
                                     font.weight: Font.Medium
                                     elide: Text.ElideRight
                                 }
@@ -681,25 +696,58 @@ Item {
                                 }
                             }
 
-                            Text {
+                            Row {
                                 width: parent.width
-                                text: {
-                                    const bits = []
-                                    if (_row.year > 0)
-                                        bits.push(String(_row.year))
-                                    if (_row.isShow)
-                                        bits.push(qsTr("TV show"))
-                                    else if (_row.runtimeMinutes > 0)
-                                        bits.push(S.Format.runtime(_row.runtimeMinutes))
-                                    if (_row.rating > 0)
-                                        bits.push(S.Format.rating(_row.rating))
-                                    if (_row.started && _row.leftMinutes > 0)
-                                        bits.push(qsTr("%1 left").arg(S.Format.runtime(_row.leftMinutes)))
-                                    return bits.join("  ·  ")
+                                spacing: S.AppTheme.spacing4
+
+                                Ctrl.ThemedIcon {
+                                    id: _seenIcon
+
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: _row.watched
+                                    width: 12
+                                    height: 12
+                                    source: S.Icons.check
+                                    tintColor: S.AppTheme.primary
+                                    showPlaceholder: false
                                 }
-                                color: S.AppTheme.textSecondary
-                                font.pixelSize: S.AppTheme.fs12
-                                elide: Text.ElideRight
+
+                                Text {
+                                    id: _seenText
+
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: _row.watched
+                                    text: qsTr("Seen")
+                                    color: S.AppTheme.primary
+                                    font.pixelSize: S.AppTheme.fs12
+                                    font.weight: Font.Medium
+                                }
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: parent.width
+                                           - (_row.watched ? _seenIcon.width + _seenText.implicitWidth
+                                                             + 2 * parent.spacing
+                                                           : 0)
+                                    text: {
+                                        const bits = []
+                                        if (_row.year > 0)
+                                            bits.push(String(_row.year))
+                                        if (_row.isShow)
+                                            bits.push(qsTr("TV show"))
+                                        else if (_row.runtimeMinutes > 0)
+                                            bits.push(S.Format.runtime(_row.runtimeMinutes))
+                                        if (_row.rating > 0)
+                                            bits.push(S.Format.rating(_row.rating))
+                                        if (_row.started && _row.leftMinutes > 0)
+                                            bits.push(qsTr("%1 left").arg(S.Format.runtime(_row.leftMinutes)))
+                                        const line = bits.join("  ·  ")
+                                        return _row.watched && line.length > 0 ? " ·  " + line : line
+                                    }
+                                    color: S.AppTheme.textSecondary
+                                    font.pixelSize: S.AppTheme.fs12
+                                    elide: Text.ElideRight
+                                }
                             }
                         }
 
